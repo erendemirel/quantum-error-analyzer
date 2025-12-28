@@ -1,0 +1,31 @@
+[package]
+name = "quantum-error-analyzer"
+version = "0.1.0"
+edition = "2021"
+description = "A quantum error analyzer for visualizing Pauli error propagation, tracking Pauli frames, and analyzing Monte Carlo noise behaviour in Clifford circuits"
+license = "MIT"
+
+[lib]
+name = "quantum_error_analyzer"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bitvec = "1.0"
+thiserror = "1.0"
+
+[dev-dependencies]
+quickcheck = "1.0"
+quickcheck_macros = "1.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+insta = "1.38"
+
+[workspace]
+members = ["wasm"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+

@@ -1,0 +1,647 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    /* Prevent horizontal scrolling on html */
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: #f8f9fa;
+    color: #1a1a1a;
+    line-height: 1.6;
+    /* Prevent horizontal scrolling on body */
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+}
+
+#app {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    /* Prevent app from expanding beyond viewport */
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+header {
+    margin-bottom: 70px;
+}
+
+header h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 20px;
+}
+
+main {
+    display: grid;
+    grid-template-columns: 250px minmax(auto, 900px) 280px;
+    gap: 20px;
+    align-items: start;
+    justify-content: center;
+    /* Prevent grid from expanding beyond viewport */
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    /* Only prevent horizontal overflow, allow grid to work properly */
+    overflow-x: hidden;
+    overflow-y: visible;
+}
+
+/* Ensure grid items allow the middle column to expand properly */
+main > * {
+    min-width: 0;
+}
+
+.controls-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: stretch;
+}
+
+.gate-palette {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.gate-palette h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #555;
+}
+
+.gate-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+
+.gate-btn {
+    padding: 6px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.gate-btn:hover {
+    background: #f5f5f5;
+    border-color: #bbb;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.gate-btn.active {
+    background: #6A9DCE;
+    color: white;
+    border-color: #6A9DCE;
+    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+}
+
+.error-controls {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.error-controls h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #555;
+}
+
+.qubit-selector {
+    margin-bottom: 10px;
+}
+
+.qubit-selector label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.qubit-selector select {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    background: white;
+    cursor: pointer;
+    width: 100%;
+}
+
+.error-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.error-btn {
+    padding: 8px 6px;
+    border: 2px solid;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    text-align: center;
+    min-width: 0;
+}
+
+.error-btn.error-x {
+    border-color: #e65a6e;
+    color: #e65a6e;
+}
+
+.error-btn.error-x:hover {
+    background: #fff5f5;
+    border-color: #e65a6e;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(230, 90, 110, 0.2);
+}
+
+.error-btn.error-x.active {
+    background: #e65a6e;
+    color: white;
+    box-shadow: 0 2px 6px rgba(230, 90, 110, 0.3);
+}
+
+.error-btn.error-y {
+    border-color: #6bc4a8;
+    color: #6bc4a8;
+}
+
+.error-btn.error-y:hover {
+    background: #f0fdf4;
+    border-color: #6bc4a8;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(107, 196, 168, 0.2);
+}
+
+.error-btn.error-y.active {
+    background: #6bc4a8;
+    color: white;
+    box-shadow: 0 2px 6px rgba(107, 196, 168, 0.3);
+}
+
+.error-btn.error-z {
+    border-color: #e6c85a;
+    color: #e6c85a;
+}
+
+.error-btn.error-z:hover {
+    background: #fffbeb;
+    border-color: #e6c85a;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(230, 200, 90, 0.2);
+}
+
+.error-btn.error-z.active {
+    background: #e6c85a;
+    color: white;
+    box-shadow: 0 2px 6px rgba(230, 200, 90, 0.3);
+}
+
+.error-btn.error-i {
+    border-color: #bdc3c7;
+    color: #7f8c8d;
+}
+
+.error-btn.error-i:hover {
+    background: #f8f9fa;
+    border-color: #95a5a6;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(189, 195, 199, 0.2);
+}
+
+.error-btn.error-i.active {
+    background: #bdc3c7;
+    color: white;
+    box-shadow: 0 2px 6px rgba(189, 195, 199, 0.3);
+}
+
+.simulation-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.simulation-panel > div {
+    padding: 20px;
+}
+
+.simulation-panel > div:not(:last-child) {
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.error-display, .time-display {
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
+.error-display h3, .time-display h3, .error-chart h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.error-chart {
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
+.error-chart-svg {
+    display: block;
+    margin: 0 auto;
+}
+
+.error-display {
+    position: relative;
+}
+
+.why-tooltip-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #3498db;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: help;
+    transition: all 0.2s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.why-tooltip-trigger:hover {
+    background: #2980b9;
+    transform: scale(1.1);
+}
+
+.why-tooltip {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    max-width: 300px;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #333;
+    margin-top: 5px;
+}
+
+.why-tooltip strong {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.why-tooltip-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #3498db;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: help;
+    transition: all 0.2s;
+    line-height: 1;
+}
+
+.why-tooltip-trigger:hover {
+    background: #2980b9;
+    transform: scale(1.1);
+}
+
+.why-tooltip {
+    display: none;
+    position: absolute;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    max-width: 300px;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #333;
+    margin-top: 5px;
+}
+
+.why-tooltip strong {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.simulation-controls {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e0e0e0;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-left: 0;
+}
+
+.simulation-controls h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sim-slider-container {
+    margin-bottom: 15px;
+    width: 100%;
+}
+
+
+.sim-step-controls {
+    margin-bottom: 15px;
+    width: 100%;
+}
+
+.step-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.step-btn {
+    padding: 10px 20px;
+    border: 2px solid #645966;
+    background: white;
+    color: #645966;
+    border-radius: 6px;
+    min-width: 140px;
+    width: 140px;
+    height: 44px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    text-align: center;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.step-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(39, 174, 96, 0.3);
+}
+
+.step-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #999;
+}
+
+.time-display-text {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #666;
+    min-width: 120px;
+    text-align: center;
+}
+
+.sim-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.sim-btn {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.sim-btn:hover {
+    background: #f5f5f5;
+    border-color: #bbb;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.sim-btn:active {
+    transform: translateY(0);
+}
+
+.circuit-container {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 1px solid #e8e8e8;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    /* Always fill the grid column width */
+    min-width: 0;
+    width: 100%;
+    /* Don't block pointer events - let child elements handle them */
+    pointer-events: none;
+    /* Prevent container from expanding due to content, but allow scrolling in children */
+    overflow: visible;
+}
+
+.circuit-container > * {
+    /* Re-enable pointer events for direct children */
+    pointer-events: auto;
+}
+
+#circuit-view {
+    min-height: 400px;
+    flex: 1;
+    position: relative;
+    width: 100%;
+    /* Scrollbar only on circuit view, not on simulation controls */
+    overflow-x: auto;
+    overflow-y: hidden;
+    /* Smooth scrolling for better UX when circuit is long */
+    scroll-behavior: smooth;
+    /* Ensure pointer events work correctly for SVG elements */
+    pointer-events: auto;
+    /* Prevent content from expanding parent */
+    box-sizing: border-box;
+}
+
+.circuit-empty-hint {
+    position: absolute;
+    top: 75%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #cecccc;
+    font-size: 0.9rem;
+    text-align: left;
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    max-width: 300px;
+    line-height: 1.6;
+    z-index: 10;
+    /* Ensure hint stays within circuit view bounds */
+    margin: 0 auto;
+}
+
+.circuit-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    /* Allow inline styles to override for fixed minimum scale */
+    min-width: 0;
+    /* Prevent SVG from expanding beyond its container */
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.qubit-line {
+    stroke: #ddd;
+    stroke-width: 2;
+}
+
+.time-separator {
+    stroke: #bbb;
+    stroke-width: 1;
+    stroke-dasharray: 4,4;
+    opacity: 1;
+    pointer-events: none;
+}
+
+.gate-placement-area {
+    cursor: default;
+    transition: all 0.15s ease;
+}
+
+.gate-placement-area:hover {
+    cursor: pointer;
+}
+
+.gate-symbol {
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: middle;
+}
+
+.gate-box {
+    fill: white;
+    stroke: #6A9DCE ;
+    stroke-width: 2;
+    rx: 4;
+}
+
+.gate-box.gate-highlighted {
+    stroke: #463a47;
+    stroke-width: 2.5;
+    opacity: 0.9;
+}
+
+.separator-highlighted {
+    border-left-color: #625264 !important;
+    opacity: 1 !important;
+}
+
+.error-indicator {
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: middle;
+}
+
+.error-x {
+    fill: #e65a6e;
+}
+
+.error-y {
+    fill: #6bc4a8;
+}
+
+.error-z {
+    fill: #e6c85a;
+}
+
+.error-i {
+    fill: #bdc3c7;
+}
+
+
+.error-pattern {
+    font-family: 'Courier New', monospace;
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: #2c3e50;
+}
+
+.time-info {
+    font-size: 1.1rem;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
