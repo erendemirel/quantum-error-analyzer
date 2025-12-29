@@ -1269,11 +1269,9 @@ function placeGate(qubit, time, gateType) {
             newGateQubits = [qubit];
         }
         
-        // Find existing gate at this time step that uses any of the qubits we want to place the new gate on
-        let gateToReplaceIndex = -1;
-        let gateToReplace = null;
+        // Find ALL existing gates at this time step that conflict with the new gate
+        const conflictingGates = []; // Array of { index, gate, qubits }
         
-        // First pass: find gate to replace (if any)
         for (let i = 0; i < gates.length; i++) {
             const gateTime = gateTimePositions.get(i);
             if (gateTime === time) {
@@ -1293,36 +1291,35 @@ function placeGate(qubit, time, gateType) {
                 
                 // Check if this gate uses any of the qubits we want to place the new gate on
                 if (newGateQubits.some(q => gateQubits.includes(q))) {
-                    gateToReplaceIndex = i;
-                    gateToReplace = gate;
-                    break; // Found the gate to replace
+                    conflictingGates.push({ index: i, gate, qubits: gateQubits });
                 }
             }
         }
         
-        // If we found a gate to replace, check if replacement is valid
-        if (gateToReplaceIndex !== -1 && gateToReplace) {
-            // Get qubits used by the gate we're replacing
-            let replacementQubits = [];
-            if (gateToReplace.Single) {
-                replacementQubits = [gateToReplace.Single.qubit];
-            } else if (gateToReplace.Two) {
-                if (gateToReplace.Two.CNOT) {
-                    replacementQubits = [gateToReplace.Two.CNOT.control, gateToReplace.Two.CNOT.target];
-                } else if (gateToReplace.Two.CZ) {
-                    replacementQubits = [gateToReplace.Two.CZ.control, gateToReplace.Two.CZ.target];
-                } else if (gateToReplace.Two.SWAP) {
-                    replacementQubits = [gateToReplace.Two.SWAP.qubit1, gateToReplace.Two.SWAP.qubit2];
-                }
-            }
+        // If we found conflicting gates, check if we can replace them
+        if (conflictingGates.length > 0) {
+            // Collect all qubits covered by conflicting gates
+            const coveredQubits = new Set();
+            conflictingGates.forEach(({ qubits }) => {
+                qubits.forEach(q => coveredQubits.add(q));
+            });
             
-            // Check if new gate uses additional qubits that might conflict with other gates
-            const additionalQubits = newGateQubits.filter(q => !replacementQubits.includes(q));
+            // Check if the conflicting gates together cover ALL qubits needed by the new gate
+            const allQubitsCovered = newGateQubits.every(q => coveredQubits.has(q));
             
-            if (additionalQubits.length > 0) {
-                // New gate uses additional qubits, check for conflicts with other gates at same time
+            if (allQubitsCovered) {
+                // Conflicting gates cover all qubits needed - we can replace ALL of them
+                // This follows the "only 1 gate per qubit per time step" rule
+                // Proceed to replace all conflicting gates
+            } else {
+                // Conflicting gates cover some qubits, but not all
+                // Check if the remaining qubits are free (not occupied by other gates)
+                const uncoveredQubits = newGateQubits.filter(q => !coveredQubits.has(q));
+                const conflictingIndices = new Set(conflictingGates.map(cg => cg.index));
+                
+                // Check if any uncovered qubit is occupied by a non-conflicting gate
                 for (let i = 0; i < gates.length; i++) {
-                    if (i === gateToReplaceIndex) continue; // Skip the gate we're replacing
+                    if (conflictingIndices.has(i)) continue; // Skip gates we're already replacing
                     
                     const gateTime = gateTimePositions.get(i);
                     if (gateTime === time) {
@@ -1340,14 +1337,14 @@ function placeGate(qubit, time, gateType) {
                             }
                         }
                         
-                        // Check if new gate's additional qubits would conflict with this other gate
-                        if (additionalQubits.some(q => gateQubits.includes(q))) {
-                            return; // Block replacement - would conflict with another gate
+                        // Check if this gate uses any of the uncovered qubits
+                        if (uncoveredQubits.some(q => gateQubits.includes(q))) {
+                            return; // Block placement - uncovered qubit is also occupied
                         }
                     }
                 }
+                // All uncovered qubits are free - we can replace the conflicting gates
             }
-            // Replacement is valid - proceed to replace
         } else {
             // No gate to replace, check for conflicts with any existing gates
             for (let i = 0; i < gates.length; i++) {
@@ -1391,24 +1388,38 @@ function placeGate(qubit, time, gateType) {
         }
         
         const newCircuit = new WasmCircuit(circuit.num_qubits());
-        const gatesToInsert = Array.from(gates);
+        const gatesToInsert = [];
         const newGateTimePositions = new Map();
         
-        if (gateToReplaceIndex !== -1) {
-            // Replace existing gate
-            gatesToInsert[gateToReplaceIndex] = newGate;
+        if (conflictingGates.length > 0) {
+            // Replace ALL conflicting gates with the new gate
+            const conflictingIndices = new Set(conflictingGates.map(cg => cg.index));
             
-            // Copy all time positions, keeping the replaced gate at the same time
-            gates.forEach((g, idx) => {
-                const oldTime = gateTimePositions.get(idx);
-                if (oldTime !== undefined) {
-                    newGateTimePositions.set(idx, oldTime);
+            // Find the earliest position among conflicting gates for insertion
+            const earliestConflictingIndex = Math.min(...conflictingGates.map(cg => cg.index));
+            
+            // Build new gates array: keep non-conflicting gates, insert new gate at earliest position
+            let newIndex = 0;
+            for (let oldIndex = 0; oldIndex < gates.length; oldIndex++) {
+                if (!conflictingIndices.has(oldIndex)) {
+                    // Keep this gate
+                    gatesToInsert.push(gates[oldIndex]);
+                    const oldTime = gateTimePositions.get(oldIndex);
+                    if (oldTime !== undefined) {
+                        newGateTimePositions.set(newIndex, oldTime);
+                    }
+                    newIndex++;
+                } else if (oldIndex === earliestConflictingIndex) {
+                    // Insert new gate at the position of the first conflicting gate
+                    gatesToInsert.push(newGate);
+                    newGateTimePositions.set(newIndex, time);
+                    newIndex++;
                 }
-            });
-            // Ensure the replaced gate has the correct time
-            newGateTimePositions.set(gateToReplaceIndex, time);
+                // Skip other conflicting gates (they're being replaced)
+            }
         } else {
-            // Insert new gate (original behavior)
+            // Insert new gate (original behavior - no conflicts)
+            gatesToInsert.push(...gates);
             let insertPosition = gates.length;
             const existingTimeSlots = new Map();
             gates.forEach((g, idx) => {

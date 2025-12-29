@@ -285,5 +285,119 @@ test.describe('Gate Controls', () => {
     expect(sGateCount).toBe(0);
     await expect(circuitView.locator('text:has-text("X")')).toBeVisible();
   });
+
+  test('placing CNOT when there are 2 gates at same time step replaces both gates', async ({ page }) => {
+    const circuitView = page.locator('#circuit-view');
+    
+    // Step 1: Place two gates at the same time step (H on Q0, S on Q1 at time 0)
+    await page.click('.gate-btn:has-text("H")');
+    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await page.waitForTimeout(200);
+    
+    await page.click('.gate-btn:has-text("S")');
+    await page.locator('rect[data-qubit="1"][data-time="0"]').first().click();
+    await page.waitForTimeout(200);
+    
+    // Verify both gates are present
+    await expect(circuitView.locator('text:has-text("H")')).toBeVisible();
+    await expect(circuitView.locator('text:has-text("S")')).toBeVisible();
+    
+    // Step 2: Place CNOT(0,1) at the same time step (should replace both H and S)
+    await page.click('.gate-btn:has-text("CNOT")');
+    const cnotArea = page.locator('rect[data-qubit="0"][data-time="0"]').first();
+    await cnotArea.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await cnotArea.click({ force: true });
+    await page.waitForTimeout(500);
+    
+    // Step 3: Verify both H and S are gone (replaced by CNOT)
+    const hGates = circuitView.locator('text:has-text("H")');
+    const hGateCount = await hGates.count();
+    expect(hGateCount).toBe(0);
+    
+    const sGates = circuitView.locator('text:has-text("S")');
+    const sGateCount = await sGates.count();
+    expect(sGateCount).toBe(0);
+    
+    // Step 4: Verify CNOT gate is present
+    await expect(circuitView.locator('text:has-text("⊕")')).toBeVisible();
+  });
+
+  test('placing CZ when there are 2 gates at same time step replaces both gates', async ({ page }) => {
+    const circuitView = page.locator('#circuit-view');
+    
+    // Step 1: Place two gates at the same time step (H on Q0, X on Q1 at time 0)
+    await page.click('.gate-btn:has-text("H")');
+    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await page.waitForTimeout(200);
+    
+    await page.click('.gate-btn:has-text("X")');
+    await page.locator('rect[data-qubit="1"][data-time="0"]').first().click();
+    await page.waitForTimeout(200);
+    
+    // Verify both gates are present
+    await expect(circuitView.locator('text:has-text("H")')).toBeVisible();
+    await expect(circuitView.locator('text:has-text("X")')).toBeVisible();
+    
+    // Step 2: Place CZ(0,1) at the same time step (should replace both H and X)
+    await page.click('.gate-btn:has-text("CZ")');
+    const czArea = page.locator('rect[data-qubit="0"][data-time="0"]').first();
+    await czArea.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await czArea.click({ force: true });
+    await page.waitForTimeout(500);
+    
+    // Step 3: Verify both H and X are gone (replaced by CZ)
+    const hGates = circuitView.locator('text:has-text("H")');
+    const hGateCount = await hGates.count();
+    expect(hGateCount).toBe(0);
+    
+    const xGates = circuitView.locator('text:has-text("X")');
+    const xGateCount = await xGates.count();
+    expect(xGateCount).toBe(0);
+    
+    // Step 4: Verify CZ gate is present (CZ is rendered as circles/dots on both qubits)
+    // Check for circles with fill color #7AB9E5 (CZ gate color)
+    const czCircles = circuitView.locator('circle[fill="#7AB9E5"]');
+    const czCircleCount = await czCircles.count();
+    expect(czCircleCount).toBeGreaterThanOrEqual(2); // At least 2 circles (one per qubit)
+  });
+
+  test('placing SWAP when there are 2 gates at same time step replaces both gates', async ({ page }) => {
+    const circuitView = page.locator('#circuit-view');
+    
+    // Step 1: Place two gates at the same time step (S on Q0, Z on Q1 at time 0)
+    await page.click('.gate-btn:has-text("S")');
+    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await page.waitForTimeout(200);
+    
+    await page.click('.gate-btn:has-text("Z")');
+    await page.locator('rect[data-qubit="1"][data-time="0"]').first().click();
+    await page.waitForTimeout(200);
+    
+    // Verify both gates are present
+    await expect(circuitView.locator('text:has-text("S")')).toBeVisible();
+    await expect(circuitView.locator('text:has-text("Z")')).toBeVisible();
+    
+    // Step 2: Place SWAP(0,1) at the same time step (should replace both S and Z)
+    await page.click('.gate-btn:has-text("SWAP")');
+    const swapArea = page.locator('rect[data-qubit="0"][data-time="0"]').first();
+    await swapArea.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await swapArea.click({ force: true });
+    await page.waitForTimeout(500);
+    
+    // Step 3: Verify both S and Z are gone (replaced by SWAP)
+    const sGates = circuitView.locator('text:has-text("S")');
+    const sGateCount = await sGates.count();
+    expect(sGateCount).toBe(0);
+    
+    const zGates = circuitView.locator('text:has-text("Z")');
+    const zGateCount = await zGates.count();
+    expect(zGateCount).toBe(0);
+    
+    // Step 4: Verify SWAP gate is present (SWAP is rendered as "×" symbol on both qubits)
+    await expect(circuitView.locator('text:has-text("×")').first()).toBeVisible();
+  });
 });
 
