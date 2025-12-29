@@ -14,50 +14,52 @@ pub fn apply_single_gate(pauli: &mut PauliString, qubit: usize, gate: SingleGate
     match gate {
         SingleGate::I => {}
         SingleGate::X => {
-            let z_bit = (pauli.z_bits() >> qubit) & 1;
-            if z_bit != 0 {
+            if pauli.z_bits()[qubit] {
                 pauli.set_phase(pauli.phase().multiply(Phase::MinusOne));
             }
         }
         SingleGate::Y => {
-            let x_bit = (pauli.x_bits() >> qubit) & 1;
-            let z_bit = (pauli.z_bits() >> qubit) & 1;
+            let x_bit = pauli.x_bits()[qubit];
+            let z_bit = pauli.z_bits()[qubit];
             
             // Y X Y' = -X, Y Z Y' = -Z
-            if x_bit != 0 && z_bit == 0 {
+            if x_bit && !z_bit {
                 pauli.set_phase(pauli.phase().multiply(Phase::MinusOne));
-            } else if x_bit == 0 && z_bit != 0 {
+            } else if !x_bit && z_bit {
                 pauli.set_phase(pauli.phase().multiply(Phase::MinusOne));
             }
         }
         SingleGate::Z => {
-            let x_bit = (pauli.x_bits() >> qubit) & 1;
-            if x_bit != 0 {
+            if pauli.x_bits()[qubit] {
                 pauli.set_phase(pauli.phase().multiply(Phase::MinusOne));
             }
         }
         SingleGate::H => {
-            let x_bit = (pauli.x_bits() >> qubit) & 1;
-            let z_bit = (pauli.z_bits() >> qubit) & 1;
+            let x_bit = pauli.x_bits()[qubit];
+            let z_bit = pauli.z_bits()[qubit];
             
-            let mask = 1u64 << qubit;
-            let new_x = (pauli.x_bits() & !mask) | (z_bit << qubit);
-            let new_z = (pauli.z_bits() & !mask) | (x_bit << qubit);
+            let mut new_x = pauli.x_bits().clone();
+            let mut new_z = pauli.z_bits().clone();
+            new_x.set(qubit, z_bit);
+            new_z.set(qubit, x_bit);
             pauli.set_x_bits(new_x);
             pauli.set_z_bits(new_z);
             
-            if x_bit != 0 && z_bit != 0 {
+            if x_bit && z_bit {
                 pauli.set_phase(pauli.phase().multiply(Phase::MinusOne));
             }
         }
         SingleGate::S => {
-            let x_bit = (pauli.x_bits() >> qubit) & 1;
-            let z_bit = (pauli.z_bits() >> qubit) & 1;
+            let x_bit = pauli.x_bits()[qubit];
+            let z_bit = pauli.z_bits()[qubit];
             
-            if x_bit != 0 {
-                pauli.set_z_bits(pauli.z_bits() ^ (1 << qubit));
+            if x_bit {
+                let mut new_z = pauli.z_bits().clone();
+                let old_value = new_z[qubit];
+                new_z.set(qubit, !old_value);
+                pauli.set_z_bits(new_z);
                 
-                if z_bit == 0 {
+                if !z_bit {
                     pauli.set_phase(pauli.phase().multiply(Phase::PlusI));
                 } else {
                     let current_phase = pauli.phase();
@@ -70,13 +72,16 @@ pub fn apply_single_gate(pauli: &mut PauliString, qubit: usize, gate: SingleGate
             }
         }
         SingleGate::Sdg => {
-            let x_bit = (pauli.x_bits() >> qubit) & 1;
-            let z_bit = (pauli.z_bits() >> qubit) & 1;
+            let x_bit = pauli.x_bits()[qubit];
+            let z_bit = pauli.z_bits()[qubit];
             
-            if x_bit != 0 {
-                pauli.set_z_bits(pauli.z_bits() ^ (1 << qubit));
+            if x_bit {
+                let mut new_z = pauli.z_bits().clone();
+                let old_value = new_z[qubit];
+                new_z.set(qubit, !old_value);
+                pauli.set_z_bits(new_z);
                 
-                if z_bit == 0 {
+                if !z_bit {
                     pauli.set_phase(pauli.phase().multiply(Phase::MinusI));
                 } else {
                     let current_phase = pauli.phase();
@@ -99,16 +104,23 @@ pub fn apply_two_gate(pauli: &mut PauliString, gate: TwoGate) {
                 panic!("CNOT control and target must be different");
             }
             
-            let x_c = (pauli.x_bits() >> control) & 1;
-            let z_t = (pauli.z_bits() >> target) & 1;
+            let x_c = pauli.x_bits()[control];
+            let z_t = pauli.z_bits()[target];
             
             // X on control spreads to target, Z on target spreads to control
-            if x_c != 0 {
-                pauli.set_x_bits(pauli.x_bits() | (1 << target));
+            if x_c {
+                let mut new_x = pauli.x_bits().clone();
+                new_x.set(target, true);
+                pauli.set_x_bits(new_x);
             }
-            pauli.set_z_bits(pauli.z_bits() ^ (z_t << control));
+            let mut new_z = pauli.z_bits().clone();
+            if z_t {
+                let old_value = new_z[control];
+                new_z.set(control, !old_value);
+            }
+            pauli.set_z_bits(new_z);
             
-            if (x_c & z_t) != 0 {
+            if x_c && z_t {
                 pauli.set_phase(pauli.phase().multiply(Phase::MinusOne));
             }
         }
@@ -120,13 +132,21 @@ pub fn apply_two_gate(pauli: &mut PauliString, gate: TwoGate) {
                 panic!("CZ control and target must be different");
             }
             
-            let x_c = (pauli.x_bits() >> control) & 1;
-            let x_t = (pauli.x_bits() >> target) & 1;
+            let x_c = pauli.x_bits()[control];
+            let x_t = pauli.x_bits()[target];
             
-            pauli.set_z_bits(pauli.z_bits() ^ (x_c << target));
-            pauli.set_z_bits(pauli.z_bits() ^ (x_t << control));
+            let mut new_z = pauli.z_bits().clone();
+            if x_c {
+                let old_value = new_z[target];
+                new_z.set(target, !old_value);
+            }
+            if x_t {
+                let old_value = new_z[control];
+                new_z.set(control, !old_value);
+            }
+            pauli.set_z_bits(new_z);
             
-            if (x_c & x_t) != 0 {
+            if x_c && x_t {
                 pauli.set_phase(pauli.phase().multiply(Phase::MinusOne));
             }
         }
@@ -138,15 +158,17 @@ pub fn apply_two_gate(pauli: &mut PauliString, gate: TwoGate) {
                 return;
             }
             
-            let x1 = (pauli.x_bits() >> qubit1) & 1;
-            let z1 = (pauli.z_bits() >> qubit1) & 1;
-            let x2 = (pauli.x_bits() >> qubit2) & 1;
-            let z2 = (pauli.z_bits() >> qubit2) & 1;
+            let x1 = pauli.x_bits()[qubit1];
+            let z1 = pauli.z_bits()[qubit1];
+            let x2 = pauli.x_bits()[qubit2];
+            let z2 = pauli.z_bits()[qubit2];
             
-            let mask1 = 1u64 << qubit1;
-            let mask2 = 1u64 << qubit2;
-            let new_x = (pauli.x_bits() & !(mask1 | mask2)) | (x2 << qubit1) | (x1 << qubit2);
-            let new_z = (pauli.z_bits() & !(mask1 | mask2)) | (z2 << qubit1) | (z1 << qubit2);
+            let mut new_x = pauli.x_bits().clone();
+            let mut new_z = pauli.z_bits().clone();
+            new_x.set(qubit1, x2);
+            new_x.set(qubit2, x1);
+            new_z.set(qubit1, z2);
+            new_z.set(qubit2, z1);
             
             pauli.set_x_bits(new_x);
             pauli.set_z_bits(new_z);

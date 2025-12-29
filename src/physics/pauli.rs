@@ -7,6 +7,7 @@
 use std::fmt;
 use std::ops::{BitXor, BitXorAssign};
 use serde::{Deserialize, Serialize};
+use bitvec::prelude::*;
 
 /// Encoded as: 0 = +1, 1 = +i, 2 = -1, 3 = -i
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -90,14 +91,13 @@ impl fmt::Display for SinglePauli {
 /// Multi-qubit Pauli string using bit-packed symplectic representation.
 ///
 /// For n qubits:
-/// - x_bits: u64(supports up to 64 qubits, expandable with BitVec)
-/// - z_bits: u64
+/// Using bitvec
 /// - phase: Phase(2 bits)
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PauliString {
     /// X components: bit i = 1 means X on qubit i
-    x_bits: u64,
-    z_bits: u64,
+    x_bits: BitVec<usize, Lsb0>,
+    z_bits: BitVec<usize, Lsb0>,
     phase: Phase,
     /// For bounds checking
     num_qubits: usize,
@@ -105,12 +105,11 @@ pub struct PauliString {
 
 impl PauliString {
     pub fn new(num_qubits: usize) -> Self {
-        if num_qubits > 64 {
-            panic!("PauliString currently supports up to 64 qubits");
-        }
+        let x_bits = bitvec![usize, Lsb0; 0; num_qubits];
+        let z_bits = bitvec![usize, Lsb0; 0; num_qubits];
         Self {
-            x_bits: 0,
-            z_bits: 0,
+            x_bits,
+            z_bits,
             phase: Phase::PlusOne,
             num_qubits,
         }
@@ -118,8 +117,8 @@ impl PauliString {
 
     /// Create from string representation (e.g., "X I Z" or "XIZ")
     pub fn from_str(s: &str, num_qubits: usize) -> Result<Self, String> {
-        let mut x_bits = 0u64;
-        let mut z_bits = 0u64;
+        let mut x_bits = bitvec![usize, Lsb0; 0; num_qubits];
+        let mut z_bits = bitvec![usize, Lsb0; 0; num_qubits];
         
         let chars: Vec<char> = s.chars().filter(|c| !c.is_whitespace()).collect();
         
@@ -132,21 +131,21 @@ impl PauliString {
         }
 
         for (i, ch) in chars.iter().enumerate() {
-            if i >= 64 {
-                return Err("Too many qubits (max 64)".to_string());
+            if i >= num_qubits {
+                return Err(format!("Index {} out of range for {} qubits", i, num_qubits));
             }
             
             match ch {
                 'I' | 'i' => {}
                 'X' | 'x' => {
-                    x_bits |= 1 << i;
+                    x_bits.set(i, true);
                 }
                 'Z' | 'z' => {
-                    z_bits |= 1 << i;
+                    z_bits.set(i, true);
                 }
                 'Y' | 'y' => {
-                    x_bits |= 1 << i;
-                    z_bits |= 1 << i;
+                    x_bits.set(i, true);
+                    z_bits.set(i, true);
                 }
                 _ => {
                     return Err(format!("Invalid Pauli character: {}", ch));
@@ -175,8 +174,8 @@ impl PauliString {
             panic!("Qubit index {} out of range (max {})", qubit, self.num_qubits);
         }
         
-        let x = (self.x_bits >> qubit) & 1;
-        let z = (self.z_bits >> qubit) & 1;
+        let x = self.x_bits[qubit] as u8;
+        let z = self.z_bits[qubit] as u8;
         
         match (x, z) {
             (0, 0) => SinglePauli::I,
@@ -192,21 +191,22 @@ impl PauliString {
             panic!("Qubit index {} out of range (max {})", qubit, self.num_qubits);
         }
         
-        let mask = !(1u64 << qubit);
-        self.x_bits &= mask;
-        self.z_bits &= mask;
-        
         match pauli {
-            SinglePauli::I => {}
+            SinglePauli::I => {
+                self.x_bits.set(qubit, false);
+                self.z_bits.set(qubit, false);
+            }
             SinglePauli::X => {
-                self.x_bits |= 1 << qubit;
+                self.x_bits.set(qubit, true);
+                self.z_bits.set(qubit, false);
             }
             SinglePauli::Z => {
-                self.z_bits |= 1 << qubit;
+                self.x_bits.set(qubit, false);
+                self.z_bits.set(qubit, true);
             }
             SinglePauli::Y => {
-                self.x_bits |= 1 << qubit;
-                self.z_bits |= 1 << qubit;
+                self.x_bits.set(qubit, true);
+                self.z_bits.set(qubit, true);
             }
         }
     }
@@ -225,15 +225,19 @@ impl PauliString {
             panic!("Cannot multiply Pauli strings with different qubit counts");
         }
 
-        let new_x_bits = self.x_bits ^ other.x_bits;
-        let new_z_bits = self.z_bits ^ other.z_bits;
+        let mut new_x_bits = self.x_bits.clone();
+        new_x_bits ^= &other.x_bits;
+        let mut new_z_bits = self.z_bits.clone();
+        new_z_bits ^= &other.z_bits;
 
         // Phase formula: phase = phase1 * phase2 * i^ω(P1, P2)
         // where ω(P1, P2) = Σ_i (x1_i * z2_i - z1_i * x2_i) mod 4
         let mut phase = self.phase.multiply(other.phase);
         
-        let x1_and_z2 = self.x_bits & other.z_bits;
-        let z1_and_x2 = self.z_bits & other.x_bits;
+        let mut x1_and_z2 = self.x_bits.clone();
+        x1_and_z2 &= &other.z_bits;
+        let mut z1_and_x2 = self.z_bits.clone();
+        z1_and_x2 &= &other.x_bits;
         
         let positive_contrib = x1_and_z2.count_ones() as i32;
         let negative_contrib = z1_and_x2.count_ones() as i32;
@@ -258,23 +262,33 @@ impl PauliString {
             return false;
         }
         
-        let symplectic_product = (self.x_bits & other.z_bits) ^ (self.z_bits & other.x_bits);
+        let mut symplectic_product = self.x_bits.clone();
+        symplectic_product &= &other.z_bits;
+        let mut temp = self.z_bits.clone();
+        temp &= &other.x_bits;
+        symplectic_product ^= &temp;
         symplectic_product.count_ones() % 2 == 0
     }
 
-    pub fn x_bits(&self) -> u64 {
-        self.x_bits
+    pub fn x_bits(&self) -> &BitVec<usize, Lsb0> {
+        &self.x_bits
     }
 
-    pub fn z_bits(&self) -> u64 {
-        self.z_bits
+    pub fn z_bits(&self) -> &BitVec<usize, Lsb0> {
+        &self.z_bits
     }
 
-    pub fn set_x_bits(&mut self, x_bits: u64) {
+    pub fn set_x_bits(&mut self, x_bits: BitVec<usize, Lsb0>) {
+        if x_bits.len() != self.num_qubits {
+            panic!("x_bits length {} doesn't match num_qubits {}", x_bits.len(), self.num_qubits);
+        }
         self.x_bits = x_bits;
     }
 
-    pub fn set_z_bits(&mut self, z_bits: u64) {
+    pub fn set_z_bits(&mut self, z_bits: BitVec<usize, Lsb0>) {
+        if z_bits.len() != self.num_qubits {
+            panic!("z_bits length {} doesn't match num_qubits {}", z_bits.len(), self.num_qubits);
+        }
         self.z_bits = z_bits;
     }
 
@@ -383,6 +397,37 @@ mod tests {
         let i = PauliString::from_str("I", 1).unwrap();
         assert!(i.commutes_with(&x));
         assert!(i.commutes_with(&z));
+    }
+
+    #[test]
+    fn test_more_than_64_qubits() {
+        let num_qubits = 100;
+        let mut p = PauliString::new(num_qubits);
+        assert_eq!(p.num_qubits(), num_qubits);
+        
+        p.set_pauli(0, SinglePauli::X);
+        assert_eq!(p.get_pauli(0), SinglePauli::X);
+        
+        p.set_pauli(65, SinglePauli::Z);
+        assert_eq!(p.get_pauli(65), SinglePauli::Z);
+        
+        p.set_pauli(99, SinglePauli::Y);
+        assert_eq!(p.get_pauli(99), SinglePauli::Y);
+        
+        let mut p1 = PauliString::new(num_qubits);
+        p1.set_pauli(0, SinglePauli::X);
+        p1.set_pauli(65, SinglePauli::Z);
+        
+        let mut p2 = PauliString::new(num_qubits);
+        p2.set_pauli(0, SinglePauli::Z);
+        p2.set_pauli(65, SinglePauli::X);
+        
+        let result = p1.multiply(&p2);
+        // On qubit 0:X*Z=iY(+i)
+        // On qubit 65:Z*X=-iY(-i)
+        assert_eq!(result.get_pauli(0), SinglePauli::Y);
+        assert_eq!(result.get_pauli(65), SinglePauli::Y);
+        assert_eq!(result.phase(), Phase::PlusOne);
     }
 }
 
