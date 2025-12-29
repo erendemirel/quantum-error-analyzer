@@ -58,12 +58,18 @@ async function initApp() {
     circuit = new WasmCircuit(2);
     simulator = new WasmSimulator(circuit);
     
+    setupCircuitConfig();
     setupGatePalette();
     setupErrorControls();
     setupSimulationControls();
     // Initialize currentTime to 0 (time slot 0)
     currentTime = 0;
     previousCircuitDepth = 0; // Initialize depth tracking for auto-scroll
+    // Update qubit count input to reflect current circuit
+    const qubitCountInput = document.getElementById('qubit-count-input');
+    if (qubitCountInput) {
+        qubitCountInput.value = circuit.num_qubits();
+    }
     renderCircuit();
     updateDisplay();
     
@@ -75,6 +81,105 @@ async function initApp() {
             updateTimeSeparators();
         }, 100);
     });
+}
+
+function setupCircuitConfig() {
+    const config = document.getElementById('circuit-config');
+    config.innerHTML = '<h3>Circuit</h3><div class="qubit-config"></div>';
+    const qubitConfig = config.querySelector('.qubit-config');
+    
+    qubitConfig.innerHTML = `
+        <label style="display: block; margin-bottom: 8px;">
+            Number of Qubits:
+            <input type="number" id="qubit-count-input" min="1" max="1000" value="2" style="width: 80px; margin-left: 8px; padding: 4px;">
+        </label>
+        <button id="change-qubit-count-btn" style="width: 100%; padding: 8px; margin-top: 8px;">Update Circuit</button>
+    `;
+    
+    const qubitCountInput = document.getElementById('qubit-count-input');
+    const changeBtn = document.getElementById('change-qubit-count-btn');
+    
+    changeBtn.addEventListener('click', () => {
+        const newCount = parseInt(qubitCountInput.value, 10);
+        if (isNaN(newCount) || newCount < 1 || newCount > 1000) {
+            alert('Please enter a valid number of qubits between 1 and 1000');
+            qubitCountInput.value = circuit ? circuit.num_qubits() : 2;
+            return;
+        }
+        changeQubitCount(newCount);
+    });
+    
+    // Allow Enter key to trigger update
+    qubitCountInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            changeBtn.click();
+        }
+    });
+}
+
+function changeQubitCount(newCount) {
+    if (!circuit || newCount === circuit.num_qubits()) {
+        return;
+    }
+    
+    // Save current state
+    const savedGates = Array.from(circuit.get_gates());
+    const savedError = initialError ? JSON.parse(JSON.stringify(initialError)) : null;
+    
+    // Create new circuit with new qubit count
+    circuit = new WasmCircuit(newCount);
+    simulator = new WasmSimulator(circuit);
+    
+    // Restore gates that are still valid (qubit indices within new range)
+    savedGates.forEach(gate => {
+        try {
+            if (gate.Single) {
+                if (gate.Single.qubit < newCount) {
+                    circuit.add_single_gate(gate.Single.qubit, gate.Single.gate);
+                }
+            } else if (gate.Two) {
+                if (gate.Two.CNOT) {
+                    if (gate.Two.CNOT.control < newCount && gate.Two.CNOT.target < newCount) {
+                        circuit.add_cnot(gate.Two.CNOT.control, gate.Two.CNOT.target);
+                    }
+                } else if (gate.Two.CZ) {
+                    if (gate.Two.CZ.control < newCount && gate.Two.CZ.target < newCount) {
+                        circuit.add_cz(gate.Two.CZ.control, gate.Two.CZ.target);
+                    }
+                } else if (gate.Two.SWAP) {
+                    if (gate.Two.SWAP.qubit1 < newCount && gate.Two.SWAP.qubit2 < newCount) {
+                        circuit.add_swap(gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2);
+                    }
+                }
+            }
+        } catch (e) {
+            // Skip invalid gates (e.g., qubit index out of range)
+            console.warn('Skipping gate due to qubit count change:', e);
+        }
+    });
+    
+    // Restore error if it's still valid
+    if (savedError && savedError.qubit < newCount) {
+        initialError = savedError;
+        simulator.inject_error(savedError.qubit, savedError.pauli);
+    } else {
+        initialError = null;
+    }
+    
+    // Reset simulation state
+    currentTime = 0;
+    previousCircuitDepth = 0;
+    gateTimePositions.clear();
+    errorHistory = [];
+    
+    // Update UI
+    const qubitCountInput = document.getElementById('qubit-count-input');
+    if (qubitCountInput) {
+        qubitCountInput.value = newCount;
+    }
+    setupErrorControls(); // Update qubit selector
+    renderCircuit();
+    updateDisplay();
 }
 
 function setupGatePalette() {
