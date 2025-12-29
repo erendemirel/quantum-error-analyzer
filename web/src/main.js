@@ -158,10 +158,21 @@ function changeQubitCount(newCount) {
         }
     });
     
-    // Restore error if it's still valid
-    if (savedError && savedError.qubit < newCount) {
-        initialError = savedError;
-        simulator.inject_error(savedError.qubit, savedError.pauli);
+    // Restore errors if qubits are still valid
+    // initialError is stored as {qubit: errorType} object
+    if (savedError && Object.keys(savedError).length > 0) {
+        initialError = {};
+        Object.keys(savedError).forEach(q => {
+            const qubit = parseInt(q);
+            if (qubit < newCount) {
+                initialError[q] = savedError[q];
+                simulator.inject_error(qubit, savedError[q]);
+            }
+        });
+        // If no errors were valid, clear initialError
+        if (Object.keys(initialError).length === 0) {
+            initialError = null;
+        }
     } else {
         initialError = null;
     }
