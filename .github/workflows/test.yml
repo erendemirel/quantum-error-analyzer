@@ -1,0 +1,85 @@
+name: Run Tests
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  backend-tests:
+    name: Backend Tests (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run Rust tests
+        run: cargo test --workspace --all-features
+
+      - name: Run Rust integration tests
+        run: cargo test --test integration_tests --test e2e_tests
+
+  ui-tests:
+    name: UI Tests (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+
+      - name: Build WASM
+        working-directory: wasm
+        run: wasm-pack build --target web --out-dir ../web/wasm-pkg
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: web
+        run: bun install
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        working-directory: web
+        run: bun run test:e2e
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 30
+
