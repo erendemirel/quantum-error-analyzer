@@ -4,11 +4,11 @@ A quantum error analyzer for visualizing Pauli error propagation, tracking Pauli
 
 ### Current Features:
 
-Visualization of Pauli error propagation through Clifford circuits
+- Visualization of Pauli error propagation through Clifford circuits
+- Supports any number of qubits (limited by available memory)
 
 ### Roadmap:
 
-- Support for more qubits
 - Pauli frame tracking
 - Monte Carlo noise analysis
 - Syndrome extraction

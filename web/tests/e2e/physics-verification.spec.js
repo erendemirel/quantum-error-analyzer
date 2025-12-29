@@ -754,13 +754,13 @@ test.describe('Physics Verification - Comprehensive', () => {
     
     await stepToTime(page, 1);
     
-    const tooltipTrigger = page.locator('.why-tooltip-trigger');
+    const tooltipTrigger = page.locator('#error-display .info-tooltip');
     await expect(tooltipTrigger).toBeVisible();
     
     await tooltipTrigger.hover();
     await page.waitForTimeout(100);
     
-    const tooltip = page.locator('.why-tooltip');
+    const tooltip = page.locator('#error-display .tooltip-text');
     await expect(tooltip).toBeVisible();
     const tooltipText = await tooltip.textContent();
     expect(tooltipText).toContain('Before:');
@@ -776,10 +776,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     
     await stepToTime(page, 1);
     
-    await page.locator('.why-tooltip-trigger').hover();
+    await page.locator('#error-display .info-tooltip').hover();
     await page.waitForTimeout(100);
     
-    const tooltip = page.locator('.why-tooltip');
+    const tooltip = page.locator('#error-display .tooltip-text');
     const tooltipText = await tooltip.textContent();
     expect(tooltipText).toContain('H X H† = Z');
   });

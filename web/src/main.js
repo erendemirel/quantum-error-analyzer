@@ -93,7 +93,7 @@ function setupCircuitConfig() {
             Number of Qubits:
             <input type="number" id="qubit-count-input" min="1" max="1000" value="2" style="width: 80px; margin-left: 8px; padding: 4px;">
         </label>
-        <button id="change-qubit-count-btn" style="width: 100%; padding: 8px; margin-top: 8px;">Update Circuit</button>
+        <button id="change-qubit-count-btn" style="width: 100%; padding: 8px; margin-top: 8px; font-weight: normal; border: 1px solid #645966;">Update Circuit</button>
     `;
     
     const qubitCountInput = document.getElementById('qubit-count-input');
@@ -184,8 +184,32 @@ function changeQubitCount(newCount) {
 
 function setupGatePalette() {
     const palette = document.getElementById('gate-palette');
-    palette.innerHTML = '<h3>Gates</h3><div class="gate-buttons"></div>';
+    palette.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+            <h3 style="margin: 0;">Gates</h3>
+            <span class="info-tooltip" style="position: relative; cursor: help;">
+                <span style="font-size: 0.9rem; color: #666; border: 1px solid #ccc; border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; background: #f0f0f0;">?</span>
+                <span class="tooltip-text" style="visibility: hidden; width: 200px; background-color: #f5f5f5; color: #333; text-align: left; border-radius: 6px; padding: 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -100px; font-size: 0.75rem; line-height: 1.4; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 1px solid #ddd;">
+                    <strong>Gate Operations:</strong><br>
+                    • Click to place/replace gates<br>
+                    • Right-click to remove gates
+                    <span style="position: absolute; top: 100%; left: 50%; margin-left: -5px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid #f5f5f5;"></span>
+                </span>
+            </span>
+        </div>
+        <div class="gate-buttons"></div>
+    `;
     const buttons = palette.querySelector('.gate-buttons');
+    
+    // Add tooltip hover functionality
+    const tooltip = palette.querySelector('.info-tooltip');
+    const tooltipText = palette.querySelector('.tooltip-text');
+    tooltip.addEventListener('mouseenter', () => {
+        tooltipText.style.visibility = 'visible';
+    });
+    tooltip.addEventListener('mouseleave', () => {
+        tooltipText.style.visibility = 'hidden';
+    });
     
     const gates = [
         { name: 'H', label: 'H' },
@@ -682,19 +706,35 @@ function renderCircuit() {
                 clickArea.style.cursor = 'default';
             }
             clickArea.addEventListener('click', handleCircuitClick);
-            clickArea.addEventListener('mouseenter', (e) => {
+            clickArea.addEventListener('contextmenu', handleCircuitRightClick);
+            // Store reference to click area for gate hover coordination
+            clickArea._isGateHovered = false;
+            
+            const highlightClickArea = (target) => {
                 if (selectedGate) {
-                    e.target.setAttribute('fill', 'rgba(52, 152, 219, 0.15)');
-                    e.target.setAttribute('stroke', 'rgba(52, 152, 219, 0.5)');
-                    e.target.setAttribute('stroke-width', '2');
-                    e.target.setAttribute('stroke-dasharray', '4,4');
+                    target.setAttribute('fill', 'rgba(52, 152, 219, 0.15)');
+                    target.setAttribute('stroke', 'rgba(52, 152, 219, 0.5)');
+                    target.setAttribute('stroke-width', '2');
+                    target.setAttribute('stroke-dasharray', '4,4');
                 }
+            };
+            
+            const unhighlightClickArea = (target) => {
+                // Only remove highlight if not being hovered by a gate
+                if (!target._isGateHovered) {
+                    target.setAttribute('fill', 'transparent');
+                    target.removeAttribute('stroke');
+                    target.removeAttribute('stroke-width');
+                    target.removeAttribute('stroke-dasharray');
+                }
+            };
+            
+            clickArea.addEventListener('mouseenter', (e) => {
+                e.target._isGateHovered = false; // Reset flag when directly hovering click area
+                highlightClickArea(e.target);
             });
             clickArea.addEventListener('mouseleave', (e) => {
-                e.target.setAttribute('fill', 'transparent');
-                e.target.removeAttribute('stroke');
-                e.target.removeAttribute('stroke-width');
-                e.target.removeAttribute('stroke-dasharray');
+                unhighlightClickArea(e.target);
             });
             svg.appendChild(clickArea);
         }
@@ -799,7 +839,7 @@ function renderCircuit() {
         hint.className = 'circuit-empty-hint';
         hint.innerHTML = `
             <div style="margin-bottom: 8px; color: #666;">1. Select the gates from the left panel</div>
-            <div style="margin-bottom: 8px; color: #666;">2. Click on the circuit above to place them</div>
+            <div style="margin-bottom: 8px; color: #666;">2. Click on the circuit above to (re)place them. Right click on gates on the circuit to remove them</div>
             <div style="margin-bottom: 8px; color: #666;">3. Inject errors using the error buttons</div>
             <div style="color: #666;">4. Use step buttons below to step through the circuit</div>
         `;
@@ -830,6 +870,53 @@ function renderCircuit() {
 function renderGate(svg, gate, time, spacing, qubitSpacing, startX) {
     const x = startX + time * spacing;
     
+    // Helper function to add interactivity to gate elements
+    const addGateInteractivity = (element, qubit) => {
+        element.setAttribute('data-qubit', qubit);
+        element.setAttribute('data-time', time);
+        element.style.cursor = 'pointer';
+        element.addEventListener('click', handleCircuitClick);
+        element.addEventListener('contextmenu', handleCircuitRightClick);
+        
+        // Store reference to click area for this qubit/time
+        let clickAreaRef = null;
+        
+        element.addEventListener('mouseenter', (e) => {
+            e.target.style.opacity = '0.8';
+            // Find and highlight the corresponding click area
+            const svg = e.target.ownerSVGElement;
+            if (svg) {
+                clickAreaRef = svg.querySelector(`rect.gate-placement-area[data-qubit="${qubit}"][data-time="${time}"]`);
+                if (clickAreaRef) {
+                    clickAreaRef._isGateHovered = true;
+                    if (selectedGate) {
+                        clickAreaRef.setAttribute('fill', 'rgba(52, 152, 219, 0.15)');
+                        clickAreaRef.setAttribute('stroke', 'rgba(52, 152, 219, 0.5)');
+                        clickAreaRef.setAttribute('stroke-width', '2');
+                        clickAreaRef.setAttribute('stroke-dasharray', '4,4');
+                    }
+                }
+            }
+        });
+        
+        element.addEventListener('mouseleave', (e) => {
+            e.target.style.opacity = '1';
+            // Clear gate hover flag and remove highlight if mouse truly left
+            if (clickAreaRef) {
+                clickAreaRef._isGateHovered = false;
+                // Small delay to check if mouse moved to click area
+                setTimeout(() => {
+                    if (clickAreaRef && !clickAreaRef._isGateHovered && !clickAreaRef.matches(':hover')) {
+                        clickAreaRef.setAttribute('fill', 'transparent');
+                        clickAreaRef.removeAttribute('stroke');
+                        clickAreaRef.removeAttribute('stroke-width');
+                        clickAreaRef.removeAttribute('stroke-dasharray');
+                    }
+                }, 50);
+            }
+        });
+    };
+    
     if (gate.Single) {
         const single = gate.Single;
         const qubit = single.qubit;
@@ -846,6 +933,7 @@ function renderGate(svg, gate, time, spacing, qubitSpacing, startX) {
         box.setAttribute('y', y - 15);
         box.setAttribute('width', '30');
         box.setAttribute('height', '30');
+        addGateInteractivity(box, qubit);
         svg.appendChild(box);
         
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -853,6 +941,7 @@ function renderGate(svg, gate, time, spacing, qubitSpacing, startX) {
         text.setAttribute('x', x);
         text.setAttribute('y', y);
         text.textContent = gateType === 'Sdg' ? 'S†' : gateType;
+        addGateInteractivity(text, qubit);
         svg.appendChild(text);
     } else if (gate.Two) {
         const twoGate = gate.Two;
@@ -870,6 +959,8 @@ function renderGate(svg, gate, time, spacing, qubitSpacing, startX) {
             line.setAttribute('x2', x);
             line.setAttribute('y2', yTarget);
             line.setAttribute('stroke-width', '2');
+            // Make line interactive (clicking anywhere on the CNOT line works)
+            addGateInteractivity(line, control); // Use control qubit as primary
             svg.appendChild(line);
             
             const controlDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -877,6 +968,7 @@ function renderGate(svg, gate, time, spacing, qubitSpacing, startX) {
             controlDot.setAttribute('cy', yControl);
             controlDot.setAttribute('r', '5');
             controlDot.setAttribute('fill', '#7AB9E5');
+            addGateInteractivity(controlDot, control);
             svg.appendChild(controlDot);
             
             const targetBox = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -890,6 +982,7 @@ function renderGate(svg, gate, time, spacing, qubitSpacing, startX) {
             targetBox.setAttribute('y', yTarget - 15);
             targetBox.setAttribute('width', '30');
             targetBox.setAttribute('height', '30');
+            addGateInteractivity(targetBox, target);
             svg.appendChild(targetBox);
             
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -897,6 +990,7 @@ function renderGate(svg, gate, time, spacing, qubitSpacing, startX) {
             text.setAttribute('x', x);
             text.setAttribute('y', yTarget);
             text.textContent = '⊕';
+            addGateInteractivity(text, target);
             svg.appendChild(text);
         } else if (twoGate.CZ) {
             const cz = twoGate.CZ;
@@ -912,14 +1006,17 @@ function renderGate(svg, gate, time, spacing, qubitSpacing, startX) {
             line.setAttribute('x2', x);
             line.setAttribute('y2', yTarget);
             line.setAttribute('stroke-width', '2');
+            addGateInteractivity(line, control); // Use control qubit as primary
             svg.appendChild(line);
             
-            [yControl, yTarget].forEach(y => {
+            [yControl, yTarget].forEach((y, idx) => {
+                const qubit = idx === 0 ? control : target;
                 const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 dot.setAttribute('cx', x);
                 dot.setAttribute('cy', y);
                 dot.setAttribute('r', '5');
                 dot.setAttribute('fill', '#7AB9E5');
+                addGateInteractivity(dot, qubit);
                 svg.appendChild(dot);
             });
         } else if (twoGate.SWAP) {
@@ -936,14 +1033,17 @@ function renderGate(svg, gate, time, spacing, qubitSpacing, startX) {
             line.setAttribute('x2', x);
             line.setAttribute('y2', y2);
             line.setAttribute('stroke-width', '2');
+            addGateInteractivity(line, q1); // Use first qubit as primary
             svg.appendChild(line);
             
-            [y1, y2].forEach(y => {
+            [y1, y2].forEach((y, idx) => {
+                const qubit = idx === 0 ? q1 : q2;
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('class', 'gate-symbol');
                 text.setAttribute('x', x);
                 text.setAttribute('y', y);
                 text.textContent = '×';
+                addGateInteractivity(text, qubit);
                 svg.appendChild(text);
             });
         }
@@ -968,6 +1068,128 @@ function handleCircuitClick(event) {
     
     if (selectedGate) {
         placeGate(qubit, time, selectedGate);
+    }
+}
+
+function handleCircuitRightClick(event) {
+    event.preventDefault(); // Prevent context menu
+    const qubit = parseInt(event.target.getAttribute('data-qubit'));
+    const time = parseInt(event.target.getAttribute('data-time'));
+    
+    removeGate(qubit, time);
+}
+
+function removeGate(qubit, time) {
+    try {
+        const hadError = initialError !== null && Object.keys(initialError).length > 0;
+        // Deep copy initialError to ensure it's not modified
+        const savedError = initialError ? JSON.parse(JSON.stringify(initialError)) : null;
+        
+        const gates = circuit.get_gates();
+        if (!Array.isArray(gates)) {
+            console.error('Gates is not an array');
+            return;
+        }
+        
+        // Find the gate at this time step that uses this qubit
+        let gateToRemoveIndex = -1;
+        for (let i = 0; i < gates.length; i++) {
+            const gateTime = gateTimePositions.get(i);
+            if (gateTime === time) {
+                const gate = gates[i];
+                let gateQubits = [];
+                if (gate.Single) {
+                    gateQubits = [gate.Single.qubit];
+                } else if (gate.Two) {
+                    if (gate.Two.CNOT) {
+                        gateQubits = [gate.Two.CNOT.control, gate.Two.CNOT.target];
+                    } else if (gate.Two.CZ) {
+                        gateQubits = [gate.Two.CZ.control, gate.Two.CZ.target];
+                    } else if (gate.Two.SWAP) {
+                        gateQubits = [gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2];
+                    }
+                }
+                
+                // Check if this gate uses the clicked qubit
+                if (gateQubits.includes(qubit)) {
+                    gateToRemoveIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        // If no gate found, nothing to remove
+        if (gateToRemoveIndex === -1) {
+            return;
+        }
+        
+        // Remove the gate and rebuild circuit
+        const newCircuit = new WasmCircuit(circuit.num_qubits());
+        const gatesToKeep = gates.filter((g, idx) => idx !== gateToRemoveIndex);
+        
+        // Preserve time positions for remaining gates (shift indices)
+        const newGateTimePositions = new Map();
+        gates.forEach((g, idx) => {
+            if (idx < gateToRemoveIndex) {
+                // Gates before removed gate keep their index and time
+                const oldTime = gateTimePositions.get(idx);
+                if (oldTime !== undefined) {
+                    newGateTimePositions.set(idx, oldTime);
+                }
+            } else if (idx > gateToRemoveIndex) {
+                // Gates after removed gate shift index down by 1, but keep their time
+                const oldTime = gateTimePositions.get(idx);
+                if (oldTime !== undefined) {
+                    newGateTimePositions.set(idx - 1, oldTime);
+                }
+            }
+            // Skip the removed gate (idx === gateToRemoveIndex)
+        });
+        gateTimePositions = newGateTimePositions;
+        
+        // Rebuild circuit with remaining gates
+        gatesToKeep.forEach(gate => {
+            if (gate.Single) {
+                newCircuit.add_single_gate(gate.Single.qubit, gate.Single.gate);
+            } else if (gate.Two) {
+                if (gate.Two.CNOT) {
+                    newCircuit.add_cnot(gate.Two.CNOT.control, gate.Two.CNOT.target);
+                } else if (gate.Two.CZ) {
+                    newCircuit.add_cz(gate.Two.CZ.control, gate.Two.CZ.target);
+                } else if (gate.Two.SWAP) {
+                    newCircuit.add_swap(gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2);
+                }
+            }
+        });
+        
+        circuit = newCircuit;
+        simulator = new WasmSimulator(circuit);
+        currentTime = simulator.current_time();
+        
+        // Restore error state if it existed
+        if (hadError && savedError) {
+            initialError = savedError;
+            Object.keys(savedError).forEach(q => {
+                const errorType = savedError[q];
+                simulator.inject_error(parseInt(q), errorType);
+            });
+        } else {
+            initialError = null;
+        }
+        
+        // Reset simulation state
+        currentTime = 0;
+        errorHistory = [];
+        previousCircuitDepth = 0;
+        
+        // Don't clear gate time positions - they're already updated above
+        // This preserves the time slots, leaving the removed gate's position empty
+        
+        // Render with preserved time positions
+        renderCircuit();
+        updateDisplay();
+    } catch (err) {
+        console.error('Failed to remove gate:', err);
     }
 }
 
@@ -1021,6 +1243,26 @@ function placeGate(qubit, time, gateType) {
             return;
         }
         
+        // Determine which qubits will be used by the new gate
+        let newGateQubits = [];
+        if (gateType === 'CNOT') {
+            const target = (qubit + 1) % circuit.num_qubits();
+            newGateQubits = [qubit, target];
+        } else if (gateType === 'CZ') {
+            const target = (qubit + 1) % circuit.num_qubits();
+            newGateQubits = [qubit, target];
+        } else if (gateType === 'SWAP') {
+            const qubit2 = (qubit + 1) % circuit.num_qubits();
+            newGateQubits = [qubit, qubit2];
+        } else {
+            newGateQubits = [qubit];
+        }
+        
+        // Find existing gate at this time step that uses any of the qubits we want to place the new gate on
+        let gateToReplaceIndex = -1;
+        let gateToReplace = null;
+        
+        // First pass: find gate to replace (if any)
         for (let i = 0; i < gates.length; i++) {
             const gateTime = gateTimePositions.get(i);
             if (gateTime === time) {
@@ -1038,12 +1280,91 @@ function placeGate(qubit, time, gateType) {
                     }
                 }
                 
-                if (gateQubits.includes(qubit)) {
-                    return;
+                // Check if this gate uses any of the qubits we want to place the new gate on
+                if (newGateQubits.some(q => gateQubits.includes(q))) {
+                    gateToReplaceIndex = i;
+                    gateToReplace = gate;
+                    break; // Found the gate to replace
                 }
             }
         }
         
+        // If we found a gate to replace, check if replacement is valid
+        if (gateToReplaceIndex !== -1 && gateToReplace) {
+            // Get qubits used by the gate we're replacing
+            let replacementQubits = [];
+            if (gateToReplace.Single) {
+                replacementQubits = [gateToReplace.Single.qubit];
+            } else if (gateToReplace.Two) {
+                if (gateToReplace.Two.CNOT) {
+                    replacementQubits = [gateToReplace.Two.CNOT.control, gateToReplace.Two.CNOT.target];
+                } else if (gateToReplace.Two.CZ) {
+                    replacementQubits = [gateToReplace.Two.CZ.control, gateToReplace.Two.CZ.target];
+                } else if (gateToReplace.Two.SWAP) {
+                    replacementQubits = [gateToReplace.Two.SWAP.qubit1, gateToReplace.Two.SWAP.qubit2];
+                }
+            }
+            
+            // Check if new gate uses additional qubits that might conflict with other gates
+            const additionalQubits = newGateQubits.filter(q => !replacementQubits.includes(q));
+            
+            if (additionalQubits.length > 0) {
+                // New gate uses additional qubits, check for conflicts with other gates at same time
+                for (let i = 0; i < gates.length; i++) {
+                    if (i === gateToReplaceIndex) continue; // Skip the gate we're replacing
+                    
+                    const gateTime = gateTimePositions.get(i);
+                    if (gateTime === time) {
+                        const gate = gates[i];
+                        let gateQubits = [];
+                        if (gate.Single) {
+                            gateQubits = [gate.Single.qubit];
+                        } else if (gate.Two) {
+                            if (gate.Two.CNOT) {
+                                gateQubits = [gate.Two.CNOT.control, gate.Two.CNOT.target];
+                            } else if (gate.Two.CZ) {
+                                gateQubits = [gate.Two.CZ.control, gate.Two.CZ.target];
+                            } else if (gate.Two.SWAP) {
+                                gateQubits = [gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2];
+                            }
+                        }
+                        
+                        // Check if new gate's additional qubits would conflict with this other gate
+                        if (additionalQubits.some(q => gateQubits.includes(q))) {
+                            return; // Block replacement - would conflict with another gate
+                        }
+                    }
+                }
+            }
+            // Replacement is valid - proceed to replace
+        } else {
+            // No gate to replace, check for conflicts with any existing gates
+            for (let i = 0; i < gates.length; i++) {
+                const gateTime = gateTimePositions.get(i);
+                if (gateTime === time) {
+                    const gate = gates[i];
+                    let gateQubits = [];
+                    if (gate.Single) {
+                        gateQubits = [gate.Single.qubit];
+                    } else if (gate.Two) {
+                        if (gate.Two.CNOT) {
+                            gateQubits = [gate.Two.CNOT.control, gate.Two.CNOT.target];
+                        } else if (gate.Two.CZ) {
+                            gateQubits = [gate.Two.CZ.control, gate.Two.CZ.target];
+                        } else if (gate.Two.SWAP) {
+                            gateQubits = [gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2];
+                        }
+                    }
+                    
+                    // Check if any qubit used by the new gate conflicts with existing gate
+                    if (newGateQubits.some(q => gateQubits.includes(q))) {
+                        return; // Block placement - conflict detected
+                    }
+                }
+            }
+        }
+        
+        // Create the new gate (no conflicts, safe to place)
         let newGate;
         if (gateType === 'CNOT') {
             const target = (qubit + 1) % circuit.num_qubits();
@@ -1058,45 +1379,62 @@ function placeGate(qubit, time, gateType) {
             newGate = { Single: { qubit, gate: gateType } };
         }
         
-        let insertPosition = gates.length;
-        const existingTimeSlots = new Map();
-        gates.forEach((g, idx) => {
-            const gTime = gateTimePositions.get(idx);
-            if (gTime !== undefined) {
-                existingTimeSlots.set(idx, gTime);
-            }
-        });
-        
-        for (let i = 0; i < gates.length; i++) {
-            const gTime = existingTimeSlots.get(i);
-            if (gTime !== undefined && gTime > time) {
-                insertPosition = i;
-                break;
-            }
-        }
-        
         const newCircuit = new WasmCircuit(circuit.num_qubits());
         const gatesToInsert = Array.from(gates);
-        
-        gatesToInsert.splice(insertPosition, 0, newGate);
-        
         const newGateTimePositions = new Map();
-        gatesToInsert.forEach((g, newIdx) => {
-            if (newIdx < insertPosition) {
-                const oldTime = gateTimePositions.get(newIdx);
+        
+        if (gateToReplaceIndex !== -1) {
+            // Replace existing gate
+            gatesToInsert[gateToReplaceIndex] = newGate;
+            
+            // Copy all time positions, keeping the replaced gate at the same time
+            gates.forEach((g, idx) => {
+                const oldTime = gateTimePositions.get(idx);
                 if (oldTime !== undefined) {
-                    newGateTimePositions.set(newIdx, oldTime);
+                    newGateTimePositions.set(idx, oldTime);
                 }
-            } else if (newIdx === insertPosition) {
-                newGateTimePositions.set(newIdx, time);
-            } else {
-                const oldIdx = newIdx - 1;
-                const oldTime = gateTimePositions.get(oldIdx);
-                if (oldTime !== undefined) {
-                    newGateTimePositions.set(newIdx, oldTime);
+            });
+            // Ensure the replaced gate has the correct time
+            newGateTimePositions.set(gateToReplaceIndex, time);
+        } else {
+            // Insert new gate (original behavior)
+            let insertPosition = gates.length;
+            const existingTimeSlots = new Map();
+            gates.forEach((g, idx) => {
+                const gTime = gateTimePositions.get(idx);
+                if (gTime !== undefined) {
+                    existingTimeSlots.set(idx, gTime);
+                }
+            });
+            
+            for (let i = 0; i < gates.length; i++) {
+                const gTime = existingTimeSlots.get(i);
+                if (gTime !== undefined && gTime > time) {
+                    insertPosition = i;
+                    break;
                 }
             }
-        });
+            
+            gatesToInsert.splice(insertPosition, 0, newGate);
+            
+            gatesToInsert.forEach((g, newIdx) => {
+                if (newIdx < insertPosition) {
+                    const oldTime = gateTimePositions.get(newIdx);
+                    if (oldTime !== undefined) {
+                        newGateTimePositions.set(newIdx, oldTime);
+                    }
+                } else if (newIdx === insertPosition) {
+                    newGateTimePositions.set(newIdx, time);
+                } else {
+                    const oldIdx = newIdx - 1;
+                    const oldTime = gateTimePositions.get(oldIdx);
+                    if (oldTime !== undefined) {
+                        newGateTimePositions.set(newIdx, oldTime);
+                    }
+                }
+            });
+        }
+        
         gateTimePositions = newGateTimePositions;
         
         gatesToInsert.forEach(gate => {
@@ -1571,23 +1909,30 @@ function updateDisplay() {
     if (errorDisplay) {
         const explanation = generateExplanation();
         errorDisplay.innerHTML = `
-            <h3>Error Pattern</h3>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div class="error-pattern">${phase}${pattern}</div>
-                ${explanation ? `<span class="why-tooltip-trigger" title="Why?">?</span>` : ''}
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                <h3 style="margin: 0;">Error Pattern</h3>
+                ${explanation ? `
+                    <span class="info-tooltip" style="position: relative; cursor: help;">
+                        <span style="font-size: 0.9rem; color: #666; border: 1px solid #ccc; border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; background: #f0f0f0;">?</span>
+                        <span class="tooltip-text" style="visibility: hidden; width: 200px; background-color: #f5f5f5; color: #333; text-align: left; border-radius: 6px; padding: 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -100px; font-size: 0.75rem; line-height: 1.4; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 1px solid #ddd;">
+                            ${explanation}
+                            <span style="position: absolute; top: 100%; left: 50%; margin-left: -5px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid #f5f5f5;"></span>
+                        </span>
+                    </span>
+                ` : ''}
             </div>
-            ${explanation ? `<div class="why-tooltip">${explanation}</div>` : ''}
+            <div class="error-pattern">${phase}${pattern}</div>
         `;
         
         if (explanation) {
-            const trigger = errorDisplay.querySelector('.why-tooltip-trigger');
-            const tooltip = errorDisplay.querySelector('.why-tooltip');
-            if (trigger && tooltip) {
-                trigger.addEventListener('mouseenter', () => {
-                    tooltip.style.display = 'block';
+            const tooltip = errorDisplay.querySelector('.info-tooltip');
+            const tooltipText = errorDisplay.querySelector('.tooltip-text');
+            if (tooltip && tooltipText) {
+                tooltip.addEventListener('mouseenter', () => {
+                    tooltipText.style.visibility = 'visible';
                 });
-                trigger.addEventListener('mouseleave', () => {
-                    tooltip.style.display = 'none';
+                tooltip.addEventListener('mouseleave', () => {
+                    tooltipText.style.visibility = 'hidden';
                 });
             }
         }
