@@ -543,6 +543,22 @@ function setupSimulationControls() {
     });
     
     window.updateStepControls = updateStepControls;
+    // Expose placeGateAtNextTimeSlot for testing and programmatic use
+    window.placeGateAtNextTimeSlot = placeGateAtNextTimeSlot;
+    window.placeGate = placeGate;
+    // Expose circuit, gateTimePositions, and simulator for debugging
+    Object.defineProperty(window, 'circuit', {
+        get: () => circuit,
+        configurable: true
+    });
+    Object.defineProperty(window, 'gateTimePositions', {
+        get: () => gateTimePositions,
+        configurable: true
+    });
+    Object.defineProperty(window, 'simulator', {
+        get: () => simulator,
+        configurable: true
+    });
     updateStepControls();
     
     // Update when circuit changes
@@ -1078,6 +1094,7 @@ function handleCircuitClick(event) {
     const time = parseInt(event.target.getAttribute('data-time'));
     
     if (selectedGate) {
+        // Always place at the clicked time slot
         placeGate(qubit, time, selectedGate);
     }
 }
@@ -1237,6 +1254,60 @@ function calculateGateTimeSlots(gates) {
     });
     
     return { timeSlots, qubitLastTime };
+}
+
+function getNextAvailableTimeSlot(qubit, gateType) {
+    // Calculate the next available time slot for a gate on the given qubit(s)
+    // This finds the maximum time slot where the qubit(s) have a gate, then returns +1
+    let maxTime = -1;
+    
+    // Determine which qubits will be used by the gate
+    let gateQubits = [];
+    if (gateType === 'CNOT') {
+        const target = (qubit + 1) % circuit.num_qubits();
+        gateQubits = [qubit, target];
+    } else if (gateType === 'CZ') {
+        const target = (qubit + 1) % circuit.num_qubits();
+        gateQubits = [qubit, target];
+    } else if (gateType === 'SWAP') {
+        const qubit2 = (qubit + 1) % circuit.num_qubits();
+        gateQubits = [qubit, qubit2];
+    } else {
+        gateQubits = [qubit];
+    }
+    
+    const gates = circuit.get_gates();
+    gates.forEach((gate, idx) => {
+        const gateTime = gateTimePositions.get(idx);
+        if (gateTime !== undefined) {
+            let existingGateQubits = [];
+            if (gate.Single) {
+                existingGateQubits = [gate.Single.qubit];
+            } else if (gate.Two) {
+                if (gate.Two.CNOT) {
+                    existingGateQubits = [gate.Two.CNOT.control, gate.Two.CNOT.target];
+                } else if (gate.Two.CZ) {
+                    existingGateQubits = [gate.Two.CZ.control, gate.Two.CZ.target];
+                } else if (gate.Two.SWAP) {
+                    existingGateQubits = [gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2];
+                }
+            }
+            
+            // If this gate uses any of the qubits we need, check its time slot
+            if (gateQubits.some(q => existingGateQubits.includes(q))) {
+                maxTime = Math.max(maxTime, gateTime);
+            }
+        }
+    });
+    
+    return maxTime + 1;
+}
+
+function placeGateAtNextTimeSlot(qubit, gateType) {
+    // Place a gate at the next available time slot for the qubit(s)
+    // This is useful for programmatically adding gates and expanding the circuit
+    const nextTime = getNextAvailableTimeSlot(qubit, gateType);
+    placeGate(qubit, nextTime, gateType);
 }
 
 function placeGate(qubit, time, gateType) {
@@ -1420,41 +1491,41 @@ function placeGate(qubit, time, gateType) {
         } else {
             // Insert new gate (original behavior - no conflicts)
             gatesToInsert.push(...gates);
-            let insertPosition = gates.length;
-            const existingTimeSlots = new Map();
-            gates.forEach((g, idx) => {
-                const gTime = gateTimePositions.get(idx);
-                if (gTime !== undefined) {
-                    existingTimeSlots.set(idx, gTime);
+        let insertPosition = gates.length;
+        const existingTimeSlots = new Map();
+        gates.forEach((g, idx) => {
+            const gTime = gateTimePositions.get(idx);
+            if (gTime !== undefined) {
+                existingTimeSlots.set(idx, gTime);
+            }
+        });
+        
+        for (let i = 0; i < gates.length; i++) {
+            const gTime = existingTimeSlots.get(i);
+            if (gTime !== undefined && gTime > time) {
+                insertPosition = i;
+                break;
+            }
+        }
+        
+        gatesToInsert.splice(insertPosition, 0, newGate);
+        
+        gatesToInsert.forEach((g, newIdx) => {
+            if (newIdx < insertPosition) {
+                const oldTime = gateTimePositions.get(newIdx);
+                if (oldTime !== undefined) {
+                    newGateTimePositions.set(newIdx, oldTime);
                 }
-            });
-            
-            for (let i = 0; i < gates.length; i++) {
-                const gTime = existingTimeSlots.get(i);
-                if (gTime !== undefined && gTime > time) {
-                    insertPosition = i;
-                    break;
+            } else if (newIdx === insertPosition) {
+                newGateTimePositions.set(newIdx, time);
+            } else {
+                const oldIdx = newIdx - 1;
+                const oldTime = gateTimePositions.get(oldIdx);
+                if (oldTime !== undefined) {
+                    newGateTimePositions.set(newIdx, oldTime);
                 }
             }
-            
-            gatesToInsert.splice(insertPosition, 0, newGate);
-            
-            gatesToInsert.forEach((g, newIdx) => {
-                if (newIdx < insertPosition) {
-                    const oldTime = gateTimePositions.get(newIdx);
-                    if (oldTime !== undefined) {
-                        newGateTimePositions.set(newIdx, oldTime);
-                    }
-                } else if (newIdx === insertPosition) {
-                    newGateTimePositions.set(newIdx, time);
-                } else {
-                    const oldIdx = newIdx - 1;
-                    const oldTime = gateTimePositions.get(oldIdx);
-                    if (oldTime !== undefined) {
-                        newGateTimePositions.set(newIdx, oldTime);
-                    }
-                }
-            });
+        });
         }
         
         gateTimePositions = newGateTimePositions;
