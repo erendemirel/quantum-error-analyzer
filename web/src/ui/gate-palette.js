@@ -1,5 +1,5 @@
 // Gate palette UI
-import { selectedGate, setSelectedGate } from '../state.js';
+import { selectedGate, setSelectedGate, setPendingTwoQubitGate } from '../state.js';
 import { renderCircuit } from '../rendering/circuit-renderer.js';
 
 export function setupGatePalette() {
@@ -9,10 +9,13 @@ export function setupGatePalette() {
             <h3 style="margin: 0;">Gates</h3>
             <span class="info-tooltip" style="position: relative; cursor: help;">
                 <span style="font-size: 0.9rem; color: #666; border: 1px solid #ccc; border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; background: #f0f0f0;">?</span>
-                <span class="tooltip-text" style="visibility: hidden; width: 200px; background-color: #f5f5f5; color: #333; text-align: left; border-radius: 6px; padding: 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -100px; font-size: 0.75rem; line-height: 1.4; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 1px solid #ddd;">
+                <span class="tooltip-text" style="visibility: hidden; width: 220px; background-color: #f5f5f5; color: #333; text-align: left; border-radius: 6px; padding: 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -110px; font-size: 0.75rem; line-height: 1.4; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 1px solid #ddd;">
                     <strong>Gate Operations:</strong><br>
                     • Click to place/replace gates<br>
-                    • Right-click to remove gates
+                    • Right-click to remove gates<br>
+                    • Two-qubit gates (CNOT, CZ, SWAP):<br>
+                      &nbsp;&nbsp;Click control qubit, then target qubit<br>
+                      &nbsp;&nbsp;Press ESC to cancel
                     <span style="position: absolute; top: 100%; left: 50%; margin-left: -5px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid #f5f5f5;"></span>
                 </span>
             </span>
@@ -59,6 +62,8 @@ export function setupGatePalette() {
             document.querySelectorAll('.gate-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             setSelectedGate(gate.name);
+            // Clear any pending two-qubit gate selection when switching gates
+            setPendingTwoQubitGate(null);
             renderCircuit();
         });
         buttons.appendChild(btn);

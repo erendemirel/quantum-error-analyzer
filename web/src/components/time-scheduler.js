@@ -55,11 +55,9 @@ export function getNextAvailableTimeSlot(qubit, gateType) {
     let maxTime = -1;
     
     // Determine which qubits will be used by the gate
+    // For two-qubit gates, use adjacent qubit logic for backward compatibility
     let gateQubits = [];
-    if (gateType === 'CNOT') {
-        const target = (qubit + 1) % circuit.num_qubits();
-        gateQubits = [qubit, target];
-    } else if (gateType === 'CZ') {
+    if (gateType === 'CNOT' || gateType === 'CZ') {
         const target = (qubit + 1) % circuit.num_qubits();
         gateQubits = [qubit, target];
     } else if (gateType === 'SWAP') {

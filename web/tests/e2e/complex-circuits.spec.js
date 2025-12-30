@@ -61,9 +61,13 @@ test.describe('Complex Circuits', () => {
     
     await page.click('.gate-btn:has-text("H")');
     await clickCircuitPosition(page, 0, 0);
+    await page.waitForTimeout(500);
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 0, 1);
+    await clickCircuitPosition(page, 0, 1); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 1); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     await expect(page.locator('.error-pattern')).toContainText('ZI');
@@ -131,7 +135,10 @@ test.describe('Complex Circuits', () => {
     await clickCircuitPosition(page, 0, 1);
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 0, 2);
+    await clickCircuitPosition(page, 0, 2); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 2); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     let errorPattern = await page.locator('.error-pattern').textContent();

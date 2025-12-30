@@ -3,7 +3,7 @@ import { loadWasm, WasmCircuit, WasmSimulator } from './wasm-loader.js';
 import { 
     circuit, simulator, selectedGate, setCircuit, setSimulator, setSelectedGate,
     currentTime, setCurrentTime, previousCircuitDepth, setPreviousCircuitDepth,
-    gateTimePositions, errorHistory
+    gateTimePositions, errorHistory, setPendingTwoQubitGate
 } from './state.js';
 import { setupCircuitConfig, changeQubitCount } from './ui/circuit-config.js';
 import { setupGatePalette } from './ui/gate-palette.js';
@@ -12,6 +12,7 @@ import { setupSimulationControls } from './ui/simulation-controls.js';
 import { renderCircuit, updateTimeSeparators } from './rendering/circuit-renderer.js';
 import { getCircuitDepth } from './components/time-scheduler.js';
 import { recordErrorHistory } from './components/error-handler.js';
+import { handleCircuitClick } from './events/circuit-handlers.js';
 
 async function initApp() {
     const wasmLoaded = await loadWasm();
@@ -40,6 +41,9 @@ async function initApp() {
     renderCircuit();
     updateDisplay();
     
+    // Expose handleCircuitClick for testing
+    window.handleCircuitClick = handleCircuitClick;
+    
     // Update circuit on window resize
     let resizeTimeout;
     window.addEventListener('resize', () => {
@@ -48,6 +52,14 @@ async function initApp() {
             renderCircuit();
             updateTimeSeparators();
         }, 100);
+    });
+    
+    // Handle ESC key to cancel pending two-qubit gate selection
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            setPendingTwoQubitGate(null);
+            renderCircuit(); // Clear highlight
+        }
     });
 }
 

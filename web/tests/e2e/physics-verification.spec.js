@@ -365,7 +365,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await expect(page.locator('.error-pattern')).toContainText('XI');
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -374,12 +377,15 @@ test.describe('Physics Verification - Comprehensive', () => {
   });
 
   test('CNOT: Z on target spreads to control', async ({ page }) => {
-    await page.click('.error-btn.error-z');
+    await page.selectOption('#error-qubit-select', '1');  // Select Q1 first
+    await page.click('.error-btn.error-z');  // Z on Q1 (target)
     await page.waitForTimeout(100);
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 1, 0);
-    await page.waitForTimeout(100);
+    await clickCircuitPosition(page, 0, 0); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -391,7 +397,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-z');
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -404,7 +413,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-x');  // X on Q1
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 0, 0);  // CNOT(0,1) - control=0, target=1
+    await clickCircuitPosition(page, 0, 0);  // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0);  // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -418,7 +430,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-z');  // Z on Q1
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -431,7 +446,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-y');
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -448,7 +466,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-x');
     
     await page.click('.gate-btn:has-text("CZ")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -461,7 +482,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-x');  // X on Q1
     
     await page.click('.gate-btn:has-text("CZ")');
-    await clickCircuitPosition(page, 0, 0);  // CZ(0,1) - control=0, target=1
+    await clickCircuitPosition(page, 0, 0);  // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0);  // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -475,7 +499,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-x');  // X on Q1
     
     await page.click('.gate-btn:has-text("CZ")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -488,7 +515,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-z');
     
     await page.click('.gate-btn:has-text("CZ")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -502,7 +532,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-z');  // Z on Q1
     
     await page.click('.gate-btn:has-text("CZ")');
-    await clickCircuitPosition(page, 0, 0);  // CZ(0,1) - control=0, target=1
+    await clickCircuitPosition(page, 0, 0);  // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0);  // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -519,7 +552,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-x');
     
     await page.click('.gate-btn:has-text("SWAP")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -532,7 +568,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-z');  // Z on Q1
     
     await page.click('.gate-btn:has-text("SWAP")');
-    await clickCircuitPosition(page, 0, 0);  // SWAP(0,1)
+    await clickCircuitPosition(page, 0, 0);  // First click: qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0);  // Second click: qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -546,7 +585,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await page.click('.error-btn.error-z');  // Z on Q1
     
     await page.click('.gate-btn:has-text("SWAP")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -575,7 +617,10 @@ test.describe('Physics Verification - Comprehensive', () => {
     await expect(page.locator('.error-pattern')).toContainText('XX');
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 0, 0);
+    await clickCircuitPosition(page, 0, 0); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 0); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     
@@ -610,9 +655,13 @@ test.describe('Physics Verification - Comprehensive', () => {
     
     await page.click('.gate-btn:has-text("H")');
     await clickCircuitPosition(page, 0, 0);
+    await page.waitForTimeout(500);
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await clickCircuitPosition(page, 0, 1);
+    await clickCircuitPosition(page, 0, 1); // First click: control qubit 0
+    await page.waitForTimeout(500); // Wait for highlight
+    await clickCircuitPosition(page, 1, 1); // Second click: target qubit 1
+    await page.waitForTimeout(500); // Wait for gate placement
     
     await stepToTime(page, 1);
     let errorPattern = await page.locator('.error-pattern').textContent();

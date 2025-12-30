@@ -9,6 +9,7 @@ let gateTimePositions = new Map();
 let errorHistory = []; // Array of { time, pattern: string, phase: string } objects
 let previousCircuitDepth = 0; // Track previous depth to detect growth
 let lastPlacedGateTime = -1; // Track the time slot of the last placed gate
+let pendingTwoQubitGate = null; // { controlQubit: number, gateType: string } for two-click selection
 
 export {
     circuit,
@@ -20,7 +21,8 @@ export {
     gateTimePositions,
     errorHistory,
     previousCircuitDepth,
-    lastPlacedGateTime
+    lastPlacedGateTime,
+    pendingTwoQubitGate
 };
 
 // Setters for state updates
@@ -54,5 +56,9 @@ export function setPreviousCircuitDepth(value) {
 
 export function setLastPlacedGateTime(value) {
     lastPlacedGateTime = value;
+}
+
+export function setPendingTwoQubitGate(value) {
+    pendingTwoQubitGate = value;
 }
 

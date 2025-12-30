@@ -1,6 +1,6 @@
 // Main circuit Konva rendering
 import Konva from 'konva';
-import { circuit, simulator, selectedGate, currentTime, initialError, gateTimePositions, previousCircuitDepth, setPreviousCircuitDepth, lastPlacedGateTime, setLastPlacedGateTime } from '../state.js';
+import { circuit, simulator, selectedGate, currentTime, initialError, gateTimePositions, previousCircuitDepth, setPreviousCircuitDepth, lastPlacedGateTime, setLastPlacedGateTime, pendingTwoQubitGate } from '../state.js';
 import { getCircuitDepth } from '../components/time-scheduler.js';
 import { renderGate } from './gate-renderer.js';
 import { renderError } from './error-renderer.js';
@@ -242,17 +242,18 @@ export function renderCircuit() {
     for (let q = qubitsToRender.start; q < qubitsToRender.end; q++) {
         const y = 40 + q * qubitSpacing;
         
-        // Qubit line
+        // Qubit line - highlight if this is the pending control qubit for two-qubit gate
+        const isPendingControl = pendingTwoQubitGate && pendingTwoQubitGate.controlQubit === q;
         const line = new Konva.Line({
             points: [startX, y, startX + lineEndX, y],
-            stroke: '#ddd',
-            strokeWidth: 2,
+            stroke: isPendingControl ? '#6A9DCE' : '#ddd',
+            strokeWidth: isPendingControl ? 3 : 2,
             listening: false,
         });
         staticLayer.add(line);
         line.moveToBottom();
         
-        // Qubit label
+        // Qubit label - highlight if this is the pending control qubit
         const label = new Konva.Text({
             x: 20,
             y: y,
@@ -260,7 +261,7 @@ export function renderCircuit() {
             fontSize: 18,
             fontFamily: 'Courier New',
             fontStyle: '600',
-            fill: '#333',
+            fill: isPendingControl ? '#6A9DCE' : '#333',
             align: 'left',
             verticalAlign: 'middle',
             listening: false,

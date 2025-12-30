@@ -1,7 +1,8 @@
 // Circuit click event handlers for Konva
-import { selectedGate } from '../state.js';
-import { placeGate } from '../components/gate-manager.js';
+import { selectedGate, pendingTwoQubitGate, setPendingTwoQubitGate } from '../state.js';
+import { placeGate, placeTwoQubitGate } from '../components/gate-manager.js';
 import { removeGate } from '../components/gate-manager.js';
+import { renderCircuit } from '../rendering/circuit-renderer.js';
 
 export function handleCircuitClick(data) {
     // Can be called with either Konva event or plain object
@@ -18,8 +19,42 @@ export function handleCircuitClick(data) {
         time = data.time;
     }
     
-    if (selectedGate && qubit !== undefined && time !== undefined) {
-        // Always place at the clicked time slot
+    if (qubit === undefined || time === undefined) {
+        return;
+    }
+    
+    // Check if we have a pending two-qubit gate (first click already done)
+    if (pendingTwoQubitGate) {
+        // Second click: place the two-qubit gate
+        const { controlQubit, gateType } = pendingTwoQubitGate;
+        
+        // Don't allow same qubit for control and target
+        if (qubit === controlQubit) {
+            // Cancel selection if clicking same qubit
+            setPendingTwoQubitGate(null);
+            renderCircuit(); // Clear highlight
+            return;
+        }
+        
+        // Place the two-qubit gate with specified control and target
+        placeTwoQubitGate(controlQubit, qubit, time, gateType);
+        
+        // Clear pending state
+        setPendingTwoQubitGate(null);
+        renderCircuit(); // Clear highlight
+        return;
+    }
+    
+    // Check if selected gate is a two-qubit gate that needs two clicks
+    if (selectedGate && (selectedGate === 'CNOT' || selectedGate === 'CZ' || selectedGate === 'SWAP')) {
+        // First click: select control qubit
+        setPendingTwoQubitGate({ controlQubit: qubit, gateType: selectedGate });
+        renderCircuit(); // Show highlight
+        return;
+    }
+    
+    // Single-qubit gate or no pending state: place gate normally
+    if (selectedGate) {
         placeGate(qubit, time, selectedGate);
     }
 }

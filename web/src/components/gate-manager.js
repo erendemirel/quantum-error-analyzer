@@ -5,11 +5,173 @@ import { getNextAvailableTimeSlot } from './time-scheduler.js';
 import { renderCircuit } from '../rendering/circuit-renderer.js';
 import { updateDisplay } from '../main.js';
 
+// New function for placing two-qubit gates with explicit control and target
+export function placeTwoQubitGate(controlQubit, targetQubit, time, gateType) {
+    try {
+        const hadError = initialError !== null && Object.keys(initialError).length > 0;
+        const savedError = initialError ? JSON.parse(JSON.stringify(initialError)) : null;
+        
+        if (!circuit) {
+            console.error('No circuit available');
+            return;
+        }
+        
+        const gates = circuit.get_gates();
+        if (!Array.isArray(gates)) {
+            console.error('Gates is not an array');
+            return;
+        }
+        
+        // Determine which qubits will be used by the new gate
+        let newGateQubits = [];
+        if (gateType === 'CNOT') {
+            newGateQubits = [controlQubit, targetQubit];
+        } else if (gateType === 'CZ') {
+            newGateQubits = [controlQubit, targetQubit];
+        } else if (gateType === 'SWAP') {
+            newGateQubits = [controlQubit, targetQubit];
+        } else {
+            console.error('Invalid two-qubit gate type:', gateType);
+            return;
+        }
+        
+        // Find ALL existing gates at this time step that conflict with the new gate
+        const conflictingGates = [];
+        
+        for (let i = 0; i < gates.length; i++) {
+            const gateTime = gateTimePositions.get(i);
+            if (gateTime === time) {
+                const gate = gates[i];
+                let gateQubits = [];
+                if (gate.Single) {
+                    gateQubits = [gate.Single.qubit];
+                } else if (gate.Two) {
+                    if (gate.Two.CNOT) {
+                        gateQubits = [gate.Two.CNOT.control, gate.Two.CNOT.target];
+                    } else if (gate.Two.CZ) {
+                        gateQubits = [gate.Two.CZ.control, gate.Two.CZ.target];
+                    } else if (gate.Two.SWAP) {
+                        gateQubits = [gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2];
+                    }
+                }
+                
+                if (newGateQubits.some(q => gateQubits.includes(q))) {
+                    conflictingGates.push({ index: i, gate, qubits: gateQubits });
+                }
+            }
+        }
+        
+        // Handle conflicts: Always replace conflicting gates
+        // Rule: If ANY qubit of the new gate conflicts with existing gates, replace those gates
+        // This reflects real physics: only one gate can act on a qubit per time step
+        // Example: CNOT(q1,q4) exists, placing CZ(q1,q3) replaces CNOT with CZ
+        // The conflicting gates will be removed and the new gate will be placed
+        if (conflictingGates.length > 0) {
+            // Always replace conflicting gates - standard behavior
+            // This merges the old "adjacent qubit replacement" rule with the general conflict rule
+        }
+        
+        // Create the new gate
+        let newGate;
+        if (gateType === 'CNOT') {
+            newGate = { Two: { CNOT: { control: controlQubit, target: targetQubit } } };
+        } else if (gateType === 'CZ') {
+            newGate = { Two: { CZ: { control: controlQubit, target: targetQubit } } };
+        } else if (gateType === 'SWAP') {
+            newGate = { Two: { SWAP: { qubit1: controlQubit, qubit2: targetQubit } } };
+        }
+        
+        // Rest of the placement logic (preserve original order, like placeGate)
+        const newCircuit = new WasmCircuit(circuit.num_qubits());
+        const gatesToInsert = [];
+        const newGateTimePositions = new Map();
+        
+        // If there are no conflicts, we could optimize by cloning, but rebuilding is simpler
+        // and consistent. Rebuilding is necessary when there are conflicts anyway.
+        
+        // Collect all gates except conflicting ones, preserving original order
+        for (let i = 0; i < gates.length; i++) {
+            if (!conflictingGates.some(cg => cg.index === i)) {
+                gatesToInsert.push(gates[i]);
+                const oldTime = gateTimePositions.get(i);
+                if (oldTime !== undefined) {
+                    newGateTimePositions.set(gatesToInsert.length - 1, oldTime);
+                }
+            }
+        }
+        
+        // Add the new gate at the end (order doesn't matter for WASM circuit)
+        gatesToInsert.push(newGate);
+        const newGateIndex = gatesToInsert.length - 1;
+        newGateTimePositions.set(newGateIndex, time);
+        
+        // Rebuild circuit: Add all gates to the new circuit
+        // Note: Rebuilding is necessary when there are conflicts (no remove_gate() API).
+        // When there are no conflicts, we could clone+add, but rebuilding is simpler and
+        // consistent. The performance difference is negligible for typical circuit sizes.
+        gatesToInsert.forEach((gate, idx) => {
+            if (gate.Single) {
+                newCircuit.add_single_gate(gate.Single.qubit, gate.Single.gate);
+            } else if (gate.Two) {
+                if (gate.Two.CNOT) {
+                    newCircuit.add_cnot(gate.Two.CNOT.control, gate.Two.CNOT.target);
+                } else if (gate.Two.CZ) {
+                    newCircuit.add_cz(gate.Two.CZ.control, gate.Two.CZ.target);
+                } else if (gate.Two.SWAP) {
+                    newCircuit.add_swap(gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2);
+                }
+            }
+        });
+        
+        const newSimulator = new WasmSimulator(newCircuit);
+        setCircuit(newCircuit);
+        setSimulator(newSimulator);
+        
+        // Update gateTimePositions - indices match gatesToInsert order
+        gateTimePositions.clear();
+        newGateTimePositions.forEach((time, idx) => {
+            gateTimePositions.set(idx, time);
+        });
+        
+        // Restore error if it existed
+        if (hadError && savedError) {
+            setInitialError(savedError);
+            Object.keys(savedError).forEach(q => {
+                const qubitIndex = parseInt(q);
+                const pauli = savedError[q];
+                newSimulator.inject_error(qubitIndex, pauli);
+            });
+        }
+        
+        setCurrentTime(0);
+        setPreviousCircuitDepth(0);
+        setLastPlacedGateTime(time);
+        
+        renderCircuit();
+        updateDisplay();
+    } catch (error) {
+        console.error('Error placing two-qubit gate:', error);
+        alert(`Failed to place ${gateType} gate: ${error.message || error}`);
+    }
+}
+
 export function placeGateAtNextTimeSlot(qubit, gateType) {
     // Place a gate at the next available time slot for the qubit(s)
     // This is useful for programmatically adding gates and expanding the circuit
-    const nextTime = getNextAvailableTimeSlot(qubit, gateType);
-    placeGate(qubit, nextTime, gateType);
+    // For two-qubit gates, uses adjacent qubit logic for backward compatibility with tests
+    if (gateType === 'CNOT' || gateType === 'CZ' || gateType === 'SWAP') {
+        const nextTime = getNextAvailableTimeSlot(qubit, gateType);
+        let targetQubit;
+        if (gateType === 'CNOT' || gateType === 'CZ') {
+            targetQubit = (qubit + 1) % circuit.num_qubits();
+        } else { // SWAP
+            targetQubit = (qubit + 1) % circuit.num_qubits();
+        }
+        placeTwoQubitGate(qubit, targetQubit, nextTime, gateType);
+    } else {
+        const nextTime = getNextAvailableTimeSlot(qubit, gateType);
+        placeGate(qubit, nextTime, gateType);
+    }
 }
 
 export function placeGate(qubit, time, gateType) {
@@ -24,20 +186,14 @@ export function placeGate(qubit, time, gateType) {
             return;
         }
         
-        // Determine which qubits will be used by the new gate
-        let newGateQubits = [];
-        if (gateType === 'CNOT') {
-            const target = (qubit + 1) % circuit.num_qubits();
-            newGateQubits = [qubit, target];
-        } else if (gateType === 'CZ') {
-            const target = (qubit + 1) % circuit.num_qubits();
-            newGateQubits = [qubit, target];
-        } else if (gateType === 'SWAP') {
-            const qubit2 = (qubit + 1) % circuit.num_qubits();
-            newGateQubits = [qubit, qubit2];
-        } else {
-            newGateQubits = [qubit];
+        // Two-qubit gates should use placeTwoQubitGate instead
+        if (gateType === 'CNOT' || gateType === 'CZ' || gateType === 'SWAP') {
+            console.error(`placeGate called with two-qubit gate ${gateType}. Use placeTwoQubitGate instead.`);
+            return;
         }
+        
+        // Determine which qubits will be used by the new gate (single-qubit gates only)
+        const newGateQubits = [qubit];
         
         // Find ALL existing gates at this time step that conflict with the new gate
         const conflictingGates = []; // Array of { index, gate, qubits }
@@ -66,96 +222,19 @@ export function placeGate(qubit, time, gateType) {
             }
         }
         
-        // If we found conflicting gates, check if we can replace them
+        // If we found conflicting gates, replace them
+        // Rule: If ANY qubit conflicts, replace all conflicting gates
+        // This merges the old "adjacent qubit replacement" rule with the general conflict rule
+        // This reflects real physics: only one gate can act on a qubit per time step
+        // Example: CNOT(q1,q4) exists, placing CZ(q1,q3) replaces CNOT with CZ
+        // Example: H(q1) exists, placing X(q1) replaces H with X
+        // The conflicting gates will be removed and the new gate will be placed
         if (conflictingGates.length > 0) {
-            // Collect all qubits covered by conflicting gates
-            const coveredQubits = new Set();
-            conflictingGates.forEach(({ qubits }) => {
-                qubits.forEach(q => coveredQubits.add(q));
-            });
-            
-            // Check if the conflicting gates together cover ALL qubits needed by the new gate
-            const allQubitsCovered = newGateQubits.every(q => coveredQubits.has(q));
-            
-            if (allQubitsCovered) {
-                // Conflicting gates cover all qubits needed - we can replace ALL of them
-                // This follows the "only 1 gate per qubit per time step" rule
-                // Proceed to replace all conflicting gates
-            } else {
-                // Conflicting gates cover some qubits, but not all
-                // Check if the remaining qubits are free (not occupied by other gates)
-                const uncoveredQubits = newGateQubits.filter(q => !coveredQubits.has(q));
-                const conflictingIndices = new Set(conflictingGates.map(cg => cg.index));
-                
-                // Check if any uncovered qubit is occupied by a non-conflicting gate
-                for (let i = 0; i < gates.length; i++) {
-                    if (conflictingIndices.has(i)) continue; // Skip gates we're already replacing
-                    
-                    const gateTime = gateTimePositions.get(i);
-                    if (gateTime === time) {
-                        const gate = gates[i];
-                        let gateQubits = [];
-                        if (gate.Single) {
-                            gateQubits = [gate.Single.qubit];
-                        } else if (gate.Two) {
-                            if (gate.Two.CNOT) {
-                                gateQubits = [gate.Two.CNOT.control, gate.Two.CNOT.target];
-                            } else if (gate.Two.CZ) {
-                                gateQubits = [gate.Two.CZ.control, gate.Two.CZ.target];
-                            } else if (gate.Two.SWAP) {
-                                gateQubits = [gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2];
-                            }
-                        }
-                        
-                        // Check if this gate uses any of the uncovered qubits
-                        if (uncoveredQubits.some(q => gateQubits.includes(q))) {
-                            return; // Block placement - uncovered qubit is also occupied
-                        }
-                    }
-                }
-                // All uncovered qubits are free - we can replace the conflicting gates
-            }
-        } else {
-            // No gate to replace, check for conflicts with any existing gates
-            for (let i = 0; i < gates.length; i++) {
-                const gateTime = gateTimePositions.get(i);
-                if (gateTime === time) {
-                    const gate = gates[i];
-                    let gateQubits = [];
-                    if (gate.Single) {
-                        gateQubits = [gate.Single.qubit];
-                    } else if (gate.Two) {
-                        if (gate.Two.CNOT) {
-                            gateQubits = [gate.Two.CNOT.control, gate.Two.CNOT.target];
-                        } else if (gate.Two.CZ) {
-                            gateQubits = [gate.Two.CZ.control, gate.Two.CZ.target];
-                        } else if (gate.Two.SWAP) {
-                            gateQubits = [gate.Two.SWAP.qubit1, gate.Two.SWAP.qubit2];
-                        }
-                    }
-                    
-                    // Check if any qubit used by the new gate conflicts with existing gate
-                    if (newGateQubits.some(q => gateQubits.includes(q))) {
-                        return; // Block placement - conflict detected
-                    }
-                }
-            }
+            // Always replace conflicting gates - standard behavior
         }
         
-        // Create the new gate (no conflicts, safe to place)
-        let newGate;
-        if (gateType === 'CNOT') {
-            const target = (qubit + 1) % circuit.num_qubits();
-            newGate = { Two: { CNOT: { control: qubit, target } } };
-        } else if (gateType === 'CZ') {
-            const target = (qubit + 1) % circuit.num_qubits();
-            newGate = { Two: { CZ: { control: qubit, target } } };
-        } else if (gateType === 'SWAP') {
-            const qubit2 = (qubit + 1) % circuit.num_qubits();
-            newGate = { Two: { SWAP: { qubit1: qubit, qubit2 } } };
-        } else {
-            newGate = { Single: { qubit, gate: gateType } };
-        }
+        // Create the new gate (single-qubit gates only)
+        const newGate = { Single: { qubit, gate: gateType } };
         
         const newCircuit = new WasmCircuit(circuit.num_qubits());
         const gatesToInsert = [];

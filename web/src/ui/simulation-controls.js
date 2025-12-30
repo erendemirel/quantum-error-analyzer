@@ -1,5 +1,5 @@
 // Simulation controls UI
-import { circuit, currentTime, gateTimePositions, simulator } from '../state.js';
+import { circuit, currentTime, gateTimePositions, simulator, pendingTwoQubitGate, selectedGate } from '../state.js';
 import { getCircuitDepth } from '../components/time-scheduler.js';
 import { stepToTime } from '../components/simulator.js';
 import { reset } from '../components/simulator.js';
@@ -60,6 +60,14 @@ export function setupSimulationControls() {
     });
     Object.defineProperty(window, 'gateTimePositions', {
         get: () => gateTimePositions,
+        configurable: true
+    });
+    Object.defineProperty(window, 'pendingTwoQubitGate', {
+        get: () => pendingTwoQubitGate,
+        configurable: true
+    });
+    Object.defineProperty(window, 'selectedGate', {
+        get: () => selectedGate,
         configurable: true
     });
     Object.defineProperty(window, 'simulator', {

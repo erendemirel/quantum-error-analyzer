@@ -106,13 +106,35 @@ test.describe('Integration Tests', () => {
     await placeGateOnQ0Rightmost('X');
     
     // Gate 8: CNOT(1,2) (can be parallel with X on Q0, at time 4)
-    // Use programmatic API - CNOT needs control and target, so we'll use placeGate with specific time
     await page.click('.gate-btn:has-text("CNOT")');
-    await page.waitForTimeout(50);
-    // For CNOT, we need to place it at a specific time slot (time 4, parallel with X on Q0)
-    // Since CNOT involves two qubits, we'll place it using the click mechanism at the right time
+    await page.waitForTimeout(500);
+    // First click: control qubit 1
     await clickCircuitPosition(page, 1, 4);
-    await page.waitForTimeout(50);
+    // Wait for pending state to be set
+    await page.waitForFunction(() => {
+      return window.pendingTwoQubitGate !== null && 
+             window.pendingTwoQubitGate.controlQubit === 1 &&
+             window.pendingTwoQubitGate.gateType === 'CNOT';
+    }, { timeout: 3000 });
+    await page.waitForTimeout(500);
+    // Second click: target qubit 2
+    await clickCircuitPosition(page, 2, 4);
+    // Wait for CNOT gate to be placed
+    await page.waitForFunction(() => {
+      if (window.pendingTwoQubitGate !== null) return false; // Still pending
+      const gates = window.circuit?.get_gates() || [];
+      const timePositions = window.gateTimePositions || new Map();
+      for (let i = 0; i < gates.length; i++) {
+        if (timePositions.get(i) === 4 && gates[i].Two?.CNOT) {
+          const cnot = gates[i].Two.CNOT;
+          if (cnot.control === 1 && cnot.target === 2) {
+            return true; // CNOT found
+          }
+        }
+      }
+      return false;
+    }, { timeout: 5000 });
+    await page.waitForTimeout(500);
     
     // Gate 9: Z on Q0 (6th gate on Q0, will expand circuit to time 5)
     await placeGateOnQ0Rightmost('Z');
@@ -122,9 +144,34 @@ test.describe('Integration Tests', () => {
     
     // Gate 11: CZ(1,2) (can be parallel with S† on Q0, at time 6)
     await page.click('.gate-btn:has-text("CZ")');
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(500);
+    // First click: control qubit 1
     await clickCircuitPosition(page, 1, 6);
-    await page.waitForTimeout(50);
+    // Wait for pending state to be set
+    await page.waitForFunction(() => {
+      return window.pendingTwoQubitGate !== null && 
+             window.pendingTwoQubitGate.controlQubit === 1 &&
+             window.pendingTwoQubitGate.gateType === 'CZ';
+    }, { timeout: 3000 });
+    await page.waitForTimeout(500);
+    // Second click: target qubit 2
+    await clickCircuitPosition(page, 2, 6);
+    // Wait for CZ gate to be placed
+    await page.waitForFunction(() => {
+      if (window.pendingTwoQubitGate !== null) return false; // Still pending
+      const gates = window.circuit?.get_gates() || [];
+      const timePositions = window.gateTimePositions || new Map();
+      for (let i = 0; i < gates.length; i++) {
+        if (timePositions.get(i) === 6 && gates[i].Two?.CZ) {
+          const cz = gates[i].Two.CZ;
+          if (cz.control === 1 && cz.target === 2) {
+            return true; // CZ found
+          }
+        }
+      }
+      return false;
+    }, { timeout: 5000 });
+    await page.waitForTimeout(500);
     
     // Gate 12: Y on Q0 (8th gate on Q0, will expand circuit to time 7)
     await placeGateOnQ0Rightmost('Y');
@@ -134,9 +181,34 @@ test.describe('Integration Tests', () => {
     
     // Gate 14: SWAP(1,2) (can be parallel with H on Q0, at time 8)
     await page.click('.gate-btn:has-text("SWAP")');
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(500);
+    // First click: qubit 1
     await clickCircuitPosition(page, 1, 8);
-    await page.waitForTimeout(50);
+    // Wait for pending state to be set
+    await page.waitForFunction(() => {
+      return window.pendingTwoQubitGate !== null && 
+             window.pendingTwoQubitGate.controlQubit === 1 &&
+             window.pendingTwoQubitGate.gateType === 'SWAP';
+    }, { timeout: 3000 });
+    await page.waitForTimeout(500);
+    // Second click: qubit 2
+    await clickCircuitPosition(page, 2, 8);
+    // Wait for SWAP gate to be placed
+    await page.waitForFunction(() => {
+      if (window.pendingTwoQubitGate !== null) return false; // Still pending
+      const gates = window.circuit?.get_gates() || [];
+      const timePositions = window.gateTimePositions || new Map();
+      for (let i = 0; i < gates.length; i++) {
+        if (timePositions.get(i) === 8 && gates[i].Two?.SWAP) {
+          const swap = gates[i].Two.SWAP;
+          if ((swap.qubit1 === 1 && swap.qubit2 === 2) || (swap.qubit1 === 2 && swap.qubit2 === 1)) {
+            return true; // SWAP found
+          }
+        }
+      }
+      return false;
+    }, { timeout: 5000 });
+    await page.waitForTimeout(500);
     
     // Gate 15: S on Q0 (10th gate on Q0, will expand circuit to time 9)
     await placeGateOnQ0Rightmost('S');
