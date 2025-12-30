@@ -1,9 +1,18 @@
 import { test, expect } from '@playwright/test';
 
+// Helper function to click on canvas at specific qubit/time coordinates
+async function clickCircuitPosition(page, qubit, time) {
+  // Konva creates one canvas per layer - use the last one (dynamic layer with click areas)
+  const canvas = page.locator('#circuit-view canvas').last();
+  const x = 100 + time * 100; // startX=100, spacing=100
+  const y = 40 + qubit * 80; // y=40, qubitSpacing=80
+  await canvas.click({ position: { x, y } });
+}
+
 test.describe('Error Management', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.circuit-svg', { timeout: 5000 });
+    await page.waitForSelector('#circuit-view canvas', { timeout: 500 });
   });
 
   test('error qubit selector updates when qubit count changes', async ({ page }) => {
@@ -192,11 +201,11 @@ test.describe('Error Management', () => {
     await page.waitForTimeout(200);
     
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     await page.waitForTimeout(200);
     
     await page.click('.gate-btn:has-text("S")');
-    await page.locator('rect[data-qubit="0"][data-time="1"]').first().click();
+    await clickCircuitPosition(page, 0, 1);
     await page.waitForTimeout(200);
     
     // Step 2: Step forward and verify chart appears
@@ -223,11 +232,11 @@ test.describe('Error Management', () => {
     await page.waitForTimeout(200);
     
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     await page.waitForTimeout(200);
     
     await page.click('.gate-btn:has-text("S")');
-    await page.locator('rect[data-qubit="0"][data-time="1"]').first().click();
+    await clickCircuitPosition(page, 0, 1);
     await page.waitForTimeout(200);
     
     // Step 2: Step to time 1
@@ -247,7 +256,7 @@ test.describe('Error Management', () => {
     await page.waitForTimeout(200);
     
     await page.click('.gate-btn:has-text("S")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     await page.waitForTimeout(200);
     
     // Step 2: Step forward

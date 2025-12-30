@@ -1,5 +1,14 @@
 import { test, expect } from '@playwright/test';
 
+// Helper function to click on canvas at specific qubit/time coordinates
+async function clickCircuitPosition(page, qubit, time) {
+  // Konva creates one canvas per layer - use the last one (dynamic layer with click areas)
+  const canvas = page.locator('#circuit-view canvas').last();
+  const x = 100 + time * 100; // startX=100, spacing=100
+  const y = 40 + qubit * 80; // y=40, qubitSpacing=80
+  await canvas.click({ position: { x, y } });
+}
+
 // Helper function to step to a specific time using step buttons
 async function stepToTime(page, targetTime) {
   const currentTimeDisplay = await page.locator('#current-time-display').textContent();
@@ -24,7 +33,7 @@ async function stepToTime(page, targetTime) {
 test.describe('Error Propagation - UI Flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.circuit-svg', { timeout: 5000 });
+    await page.waitForSelector('#circuit-view canvas', { timeout: 500 });
   });
 
   test('X error propagates through H gate to Z', async ({ page }) => {
@@ -33,7 +42,7 @@ test.describe('Error Propagation - UI Flow', () => {
     await expect(errorDisplay).toContainText('XI');
     
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     await stepToTime(page, 1);
     
@@ -46,7 +55,7 @@ test.describe('Error Propagation - UI Flow', () => {
     await expect(page.locator('.error-pattern')).toContainText('XI');
     
     await page.click('.gate-btn:has-text("S")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     await stepToTime(page, 1);
     
@@ -57,7 +66,7 @@ test.describe('Error Propagation - UI Flow', () => {
 
   test('time display updates after stepping', async ({ page }) => {
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     const timeDisplay = page.locator('.time-display-text');
     await expect(timeDisplay).toContainText('0 / 1');
@@ -69,7 +78,7 @@ test.describe('Error Propagation - UI Flow', () => {
   test('can step backward using step buttons', async ({ page }) => {
     await page.click('.error-btn.error-x');
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     await stepToTime(page, 1);
     await expect(page.locator('.error-pattern')).toContainText('ZI');
@@ -81,7 +90,7 @@ test.describe('Error Propagation - UI Flow', () => {
   test('reset clears all errors and resets circuit', async ({ page }) => {
     await page.click('.error-btn.error-x');
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     await stepToTime(page, 1);
     await expect(page.locator('.error-pattern')).toContainText('ZI');
@@ -99,10 +108,10 @@ test.describe('Error Propagation - UI Flow', () => {
     await page.click('.error-btn.error-x');
     
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     await page.click('.gate-btn:has-text("S")');
-    await page.locator('rect[data-qubit="0"][data-time="1"]').first().click();
+    await clickCircuitPosition(page, 0, 1);
     
     await stepToTime(page, 1);
     await expect(page.locator('.error-pattern')).toContainText('ZI');

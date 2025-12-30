@@ -59,6 +59,182 @@ main {
     overflow-y: visible;
 }
 
+/* Responsive design - Tablet and below */
+@media (max-width: 1200px) {
+    main {
+        grid-template-columns: 220px minmax(auto, 1fr) 240px;
+        gap: 15px;
+    }
+}
+
+/* Tablet portrait and below */
+@media (max-width: 968px) {
+    #app {
+        padding: 15px;
+    }
+
+    header {
+        margin-bottom: 30px;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    main {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .controls-panel {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+    }
+
+    .circuit-container {
+        order: 2;
+    }
+
+    .simulation-panel {
+        order: 3;
+    }
+}
+
+/* Mobile devices */
+@media (max-width: 640px) {
+    #app {
+        padding: 10px;
+    }
+
+    header {
+        margin-bottom: 20px;
+    }
+
+    header h1 {
+        font-size: 1.25rem;
+        margin-bottom: 10px;
+    }
+
+    main {
+        gap: 10px;
+    }
+
+    .controls-panel {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .circuit-config,
+    .gate-palette,
+    .error-controls {
+        padding: 12px;
+    }
+
+    .gate-buttons {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .gate-btn {
+        padding: 10px 6px;
+        font-size: 0.85rem;
+    }
+
+    .error-buttons {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .error-btn {
+        padding: 12px 8px;
+    }
+
+    .circuit-container {
+        padding: 15px;
+    }
+
+    #circuit-view {
+        min-height: 300px;
+    }
+
+    .simulation-controls {
+        padding-top: 15px;
+        margin-top: 15px;
+    }
+
+    .step-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .step-btn {
+        width: 100%;
+        min-width: unset;
+    }
+
+    .time-display-text {
+        min-width: unset;
+    }
+
+    .simulation-panel > div {
+        padding: 15px;
+    }
+
+    .error-pattern {
+        font-size: 1.1rem;
+        letter-spacing: 1px;
+    }
+
+    .time-info {
+        font-size: 1rem;
+    }
+
+    .qubit-config button {
+        padding: 12px 20px;
+    }
+}
+
+/* Very small mobile devices */
+@media (max-width: 400px) {
+    header h1 {
+        font-size: 1.1rem;
+    }
+
+    .gate-buttons {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+
+    .gate-btn {
+        padding: 12px 6px;
+        font-size: 0.9rem;
+    }
+
+    .error-buttons {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+
+    .circuit-config,
+    .gate-palette,
+    .error-controls {
+        padding: 10px;
+    }
+
+    .circuit-container {
+        padding: 10px;
+    }
+
+    #circuit-view {
+        min-height: 250px;
+    }
+
+    .simulation-panel > div {
+        padding: 12px;
+    }
+}
+
 /* Ensure grid items allow the middle column to expand properly */
 main > * {
     min-width: 0;
@@ -95,6 +271,8 @@ main > * {
     border-radius: 4px;
     padding: 4px 8px;
     font-size: 0.85rem;
+    /* Touch-friendly minimum size */
+    min-height: 44px;
 }
 
 .qubit-config button {
@@ -145,6 +323,9 @@ main > * {
     font-size: 0.8rem;
     transition: all 0.2s ease;
     font-weight: 500;
+    /* Touch-friendly minimum size */
+    min-height: 44px;
+    min-width: 44px;
 }
 
 .gate-btn:hover {
@@ -194,6 +375,8 @@ main > * {
     background: white;
     cursor: pointer;
     width: 100%;
+    /* Touch-friendly minimum size */
+    min-height: 44px;
 }
 
 .error-buttons {
@@ -214,6 +397,8 @@ main > * {
     transition: all 0.2s ease;
     text-align: center;
     min-width: 0;
+    /* Touch-friendly minimum size */
+    min-height: 44px;
 }
 
 .error-btn.error-x {
@@ -520,6 +705,8 @@ main > * {
     font-size: 0.85rem;
     transition: all 0.2s ease;
     font-weight: 500;
+    /* Touch-friendly minimum size */
+    min-height: 44px;
 }
 
 .sim-btn:hover {
@@ -566,7 +753,7 @@ main > * {
     overflow-y: hidden;
     /* Smooth scrolling for better UX when circuit is long */
     scroll-behavior: smooth;
-    /* Ensure pointer events work correctly for SVG elements */
+    /* Ensure pointer events work correctly for canvas elements */
     pointer-events: auto;
     /* Prevent content from expanding parent */
     box-sizing: border-box;
@@ -592,72 +779,17 @@ main > * {
     margin: 0 auto;
 }
 
-.circuit-svg {
+canvas {
     width: 100%;
     height: auto;
     display: block;
     /* Allow inline styles to override for fixed minimum scale */
     min-width: 0;
-    /* Prevent SVG from expanding beyond its container */
+    /* Prevent canvas from expanding beyond its container */
     max-width: 100%;
     box-sizing: border-box;
 }
 
-.qubit-line {
-    stroke: #ddd;
-    stroke-width: 2;
-}
-
-.time-separator {
-    stroke: #bbb;
-    stroke-width: 1;
-    stroke-dasharray: 4,4;
-    opacity: 1;
-    pointer-events: none;
-}
-
-.gate-placement-area {
-    cursor: default;
-    transition: all 0.15s ease;
-}
-
-.gate-placement-area:hover {
-    cursor: pointer;
-}
-
-.gate-symbol {
-    font-family: 'Courier New', monospace;
-    font-size: 18px;
-    font-weight: 600;
-    text-anchor: middle;
-    dominant-baseline: middle;
-}
-
-.gate-box {
-    fill: white;
-    stroke: #6A9DCE ;
-    stroke-width: 2;
-    rx: 4;
-}
-
-.gate-box.gate-highlighted {
-    stroke: #463a47;
-    stroke-width: 2.5;
-    opacity: 0.9;
-}
-
-.separator-highlighted {
-    border-left-color: #625264 !important;
-    opacity: 1 !important;
-}
-
-.error-indicator {
-    font-family: 'Courier New', monospace;
-    font-size: 18px;
-    font-weight: 700;
-    text-anchor: middle;
-    dominant-baseline: middle;
-}
 
 .error-x {
     fill: #e65a6e;

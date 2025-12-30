@@ -1,5 +1,14 @@
 import { test, expect } from '@playwright/test';
 
+// Helper function to click on canvas at specific qubit/time coordinates
+async function clickCircuitPosition(page, qubit, time) {
+  // Konva creates one canvas per layer - use the last one (dynamic layer with click areas)
+  const canvas = page.locator('#circuit-view canvas').last();
+  const x = 100 + time * 100; // startX=100, spacing=100
+  const y = 40 + qubit * 80; // y=40, qubitSpacing=80
+  await canvas.click({ position: { x, y } });
+}
+
 // Helper function to step to a specific time using step buttons
 async function stepToTime(page, targetTime) {
   const currentTimeDisplay = await page.locator('#current-time-display').textContent();
@@ -24,17 +33,17 @@ async function stepToTime(page, targetTime) {
 test.describe('Complex Circuits', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.circuit-svg', { timeout: 5000 });
+    await page.waitForSelector('#circuit-view canvas', { timeout: 500 });
   });
 
   test('multi-gate circuit propagates errors correctly', async ({ page }) => {
     await page.click('.error-btn.error-x');
     
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     await page.click('.gate-btn:has-text("S")');
-    await page.locator('rect[data-qubit="0"][data-time="1"]').first().click();
+    await clickCircuitPosition(page, 0, 1);
     
     await stepToTime(page, 1);
     let errorPattern = await page.locator('.error-pattern').textContent();
@@ -51,10 +60,10 @@ test.describe('Complex Circuits', () => {
     await page.click('.error-btn.error-x');
     
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await page.locator('rect[data-qubit="0"][data-time="1"]').first().click();
+    await clickCircuitPosition(page, 0, 1);
     
     await stepToTime(page, 1);
     await expect(page.locator('.error-pattern')).toContainText('ZI');
@@ -79,13 +88,13 @@ test.describe('Complex Circuits', () => {
     await page.click('.error-btn.error-z');  // Z on Q1
     
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     await page.waitForTimeout(50);  // Wait for gate placement to complete
     
     // Re-select H gate for placing second gate (it may have been deselected)
     await page.click('.gate-btn:has-text("H")');
     await page.waitForTimeout(50);  // Wait for gate selection
-    await page.locator('rect[data-qubit="1"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 1, 0);
     
     await stepToTime(page, 1);
     const errorPattern = await page.locator('.error-pattern').textContent();
@@ -96,10 +105,10 @@ test.describe('Complex Circuits', () => {
 
   test('circuit depth calculation for parallel gates', async ({ page }) => {
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="1"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 1, 0);
     
     const timeDisplay = page.locator('.time-display-text');
     await expect(timeDisplay).toContainText('/ 1');
@@ -116,13 +125,13 @@ test.describe('Complex Circuits', () => {
     await page.click('.error-btn.error-x');
     
     await page.click('.gate-btn:has-text("H")');
-    await page.locator('rect[data-qubit="0"][data-time="0"]').first().click();
+    await clickCircuitPosition(page, 0, 0);
     
     await page.click('.gate-btn:has-text("S")');
-    await page.locator('rect[data-qubit="0"][data-time="1"]').first().click();
+    await clickCircuitPosition(page, 0, 1);
     
     await page.click('.gate-btn:has-text("CNOT")');
-    await page.locator('rect[data-qubit="0"][data-time="2"]').first().click();
+    await clickCircuitPosition(page, 0, 2);
     
     await stepToTime(page, 1);
     let errorPattern = await page.locator('.error-pattern').textContent();

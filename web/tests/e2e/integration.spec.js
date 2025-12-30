@@ -1,11 +1,20 @@
 import { test, expect } from '@playwright/test';
 
+// Helper function to click on canvas at specific qubit/time coordinates
+async function clickCircuitPosition(page, qubit, time) {
+  // Konva creates one canvas per layer - use the last one (dynamic layer with click areas)
+  const canvas = page.locator('#circuit-view canvas').last();
+  const x = 100 + time * 100; // startX=100, spacing=100
+  const y = 40 + qubit * 80; // y=40, qubitSpacing=80
+  await canvas.click({ position: { x, y } });
+}
+
 test.describe('Integration Tests', () => {
   test.beforeEach(async ({ page }) => {
     // Set a fixed viewport size for consistent test behavior
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/');
-    await page.waitForSelector('.circuit-svg', { timeout: 500 });
+    await page.waitForSelector('#circuit-view canvas', { timeout: 500 });
   });
 
   test('comprehensive workflow: multiple qubits, many gates, errors, and stepping', async ({ page }) => {
@@ -64,7 +73,7 @@ test.describe('Integration Tests', () => {
     
     // Gate 2: S on Q1 (parallel with H on Q0, at time 0)
     await page.click('.gate-btn:has-text("S")');
-    await page.locator('rect[data-qubit="1"]').first().click({ force: true });
+    await clickCircuitPosition(page, 1, 0);
     await page.waitForTimeout(50);
     
     // Gate 3: Y on Q0 (2nd gate on Q0, will expand circuit to time 1)
@@ -102,10 +111,7 @@ test.describe('Integration Tests', () => {
     await page.waitForTimeout(50);
     // For CNOT, we need to place it at a specific time slot (time 4, parallel with X on Q0)
     // Since CNOT involves two qubits, we'll place it using the click mechanism at the right time
-    const cnotArea1 = page.locator('rect[data-qubit="1"][data-time="4"]').first();
-    await cnotArea1.waitFor({ state: 'visible', timeout: 500 });
-    await cnotArea1.scrollIntoViewIfNeeded();
-    await cnotArea1.click({ force: true });
+    await clickCircuitPosition(page, 1, 4);
     await page.waitForTimeout(50);
     
     // Gate 9: Z on Q0 (6th gate on Q0, will expand circuit to time 5)
@@ -117,10 +123,7 @@ test.describe('Integration Tests', () => {
     // Gate 11: CZ(1,2) (can be parallel with S† on Q0, at time 6)
     await page.click('.gate-btn:has-text("CZ")');
     await page.waitForTimeout(50);
-    const czArea = page.locator('rect[data-qubit="1"][data-time="6"]').first();
-    await czArea.waitFor({ state: 'visible', timeout: 500 });
-    await czArea.scrollIntoViewIfNeeded();
-    await czArea.click({ force: true });
+    await clickCircuitPosition(page, 1, 6);
     await page.waitForTimeout(50);
     
     // Gate 12: Y on Q0 (8th gate on Q0, will expand circuit to time 7)
@@ -132,10 +135,7 @@ test.describe('Integration Tests', () => {
     // Gate 14: SWAP(1,2) (can be parallel with H on Q0, at time 8)
     await page.click('.gate-btn:has-text("SWAP")');
     await page.waitForTimeout(50);
-    const swapArea = page.locator('rect[data-qubit="1"][data-time="8"]').first();
-    await swapArea.waitFor({ state: 'visible', timeout: 500 });
-    await swapArea.scrollIntoViewIfNeeded();
-    await swapArea.click({ force: true });
+    await clickCircuitPosition(page, 1, 8);
     await page.waitForTimeout(50);
     
     // Gate 15: S on Q0 (10th gate on Q0, will expand circuit to time 9)
@@ -156,40 +156,29 @@ test.describe('Integration Tests', () => {
     const circuitView = page.locator('#circuit-view');
     
     // Wait for circuit SVG to be visible
-    await expect(circuitView.locator('.circuit-svg')).toBeVisible({ timeout: 500 });
+    // Konva creates one canvas per layer - use the last one (dynamic layer)
+    await expect(circuitView.locator('canvas').last()).toBeVisible({ timeout: 500 });
     
-    // Debug: Check what's actually in the circuit by looking at all text elements
-    const allTextElements = await circuitView.locator('text').allTextContents();
-    console.log(`[DEBUG] All text elements in circuit: ${allTextElements.join(', ')}`);
+    // With Konva canvas, gates are rendered on canvas and not queryable as DOM elements
+    // Verify gates are present by checking circuit depth and time display
+    const timeDisplayCheck = page.locator('.time-display-text');
+    await expect(timeDisplayCheck).toContainText('/');
     
-    // Debug: Check for gate symbols specifically
-    const allGateSymbolsText = await circuitView.locator('.gate-symbol').allTextContents();
-    console.log(`[DEBUG] All gate symbols (class .gate-symbol): ${allGateSymbolsText.join(', ')}`);
+    // Verify canvas is rendered
+    // Konva creates one canvas per layer - use the last one (dynamic layer)
+    const canvas = circuitView.locator('canvas').last();
+    await expect(canvas).toBeVisible();
     
-    // Debug: Check for any text that might be a gate
-    const gateTexts = ['H', 'S', 'X', 'Y', 'Z', 'S†', '⊕', '×'];
-    for (const gateText of gateTexts) {
-      const count = await circuitView.locator(`text:has-text("${gateText}")`).count();
-      if (count > 0) {
-        console.log(`[DEBUG] Found ${count} instances of "${gateText}"`);
+    // With Konva canvas, gate symbols are rendered on canvas and not queryable
+    // Get gate count from circuit state instead
+    const gateCount = await page.evaluate(() => {
+      if (window.circuit) {
+        const gates = window.circuit.get_gates();
+        return gates ? gates.length : 0;
       }
-    }
-    
-    // Verify gates are visible - use a more lenient check
-    const hGatesLocator = circuitView.locator('text:has-text("H")');
-    const hCount = await hGatesLocator.count();
-    console.log(`[DEBUG] H gates found: ${hCount}`);
-    
-    expect(hCount).toBeGreaterThan(0);
-    
-    const cnotGatesLocator = circuitView.locator('text:has-text("⊕")');
-    const cnotCount = await cnotGatesLocator.count();
-    console.log(`[DEBUG] CNOT gates found: ${cnotCount}`);
-    expect(cnotCount).toBeGreaterThan(0);
-    
-    // Debug: Check actual circuit depth and gate count
-    const allGateSymbolsCount = await page.locator('.gate-symbol').count();
-    console.log(`[DEBUG] Total gate symbols after all placements: ${allGateSymbolsCount}`);
+      return 0;
+    });
+    console.log(`[DEBUG] Total gates in circuit: ${gateCount}`);
 
     // Debug: Check the actual gate order in the circuit and their time positions
     const gateOrderInfo = await page.evaluate(() => {
@@ -218,13 +207,27 @@ test.describe('Integration Tests', () => {
     const maxTimeTextDebug = await maxTimeDisplayDebug.first().textContent();
     console.log(`[DEBUG] Max time from display: ${maxTimeTextDebug}`);
 
-    // Count gates by type for debugging
-    const hGatesCount = await page.locator('text:has-text("H")').count();
-    const cnotGatesCount = await page.locator('text:has-text("⊕")').count();
-    const yGates = await page.locator('text:has-text("Y")').count();
-    const zGates = await page.locator('text:has-text("Z")').count();
-    const sGates = await page.locator('text:has-text("S")').count();
-    console.log(`[DEBUG] Gate counts - H: ${hGatesCount}, CNOT: ${cnotGatesCount}, Y: ${yGates}, Z: ${zGates}, S: ${sGates}`);
+    // With Konva canvas, gates are rendered on canvas and not queryable
+    // Count gates by type from circuit state instead
+    const gateCounts = await page.evaluate(() => {
+      if (window.circuit) {
+        const gates = window.circuit.get_gates();
+        const counts = { H: 0, CNOT: 0, Y: 0, Z: 0, S: 0 };
+        if (gates) {
+          gates.forEach(g => {
+            if (g.Single) {
+              const gateType = g.Single.gate;
+              if (counts.hasOwnProperty(gateType)) counts[gateType]++;
+            } else if (g.Two && g.Two.CNOT) {
+              counts.CNOT++;
+            }
+          });
+        }
+        return counts;
+      }
+      return { H: 0, CNOT: 0, Y: 0, Z: 0, S: 0 };
+    });
+    console.log(`[DEBUG] Gate counts - H: ${gateCounts.H}, CNOT: ${gateCounts.CNOT}, Y: ${gateCounts.Y}, Z: ${gateCounts.Z}, S: ${gateCounts.S}`);
     
     // Step 4: Verify TIME display shows correct initial state
     const timeDisplay = page.locator('#current-time-display, .time-info');
@@ -243,7 +246,7 @@ test.describe('Integration Tests', () => {
     expect(actualMaxTime).toBeGreaterThanOrEqual(11);
     
     // Verify we have multiple gates (at least 12 total gates across all qubits)
-    expect(allGateSymbolsCount).toBeGreaterThanOrEqual(12);
+    expect(gateCount).toBeGreaterThanOrEqual(12);
     
     // Step 5: Calculate expected error patterns based on physics
     // Initial: X on Q0, Z on Q1, I on Q2 → "XZI"
