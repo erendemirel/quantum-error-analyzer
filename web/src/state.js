@@ -9,7 +9,7 @@ let gateTimePositions = new Map();
 let errorHistory = []; // Array of { time, pattern: string, phase: string } objects
 let previousCircuitDepth = 0; // Track previous depth to detect growth
 let lastPlacedGateTime = -1; // Track the time slot of the last placed gate
-let pendingTwoQubitGate = null; // { controlQubit: number, gateType: string } for two-click selection
+let pendingTwoQubitGate = null; // { controlQubit: number, controlTime: number, gateType: string } for two-click selection
 
 export {
     circuit,

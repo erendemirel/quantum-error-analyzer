@@ -235,9 +235,33 @@ export function renderCircuit() {
     
     // Render qubit lines and labels
     // For large circuits, only render visible qubits
-    const qubitsToRender = isLargeCircuit 
+    const qubitsToRender = isLargeCircuit
         ? { start: visibleQubitStart, end: visibleQubitEnd }
         : { start: 0, end: numQubits };
+    
+    // Remove any existing control time highlights
+    const existingHighlights = staticLayer.find('.control-time-highlight');
+    existingHighlights.forEach(h => h.destroy());
+    
+    // Add visual highlight for the control time step if there's a pending two-qubit gate
+    if (pendingTwoQubitGate && pendingTwoQubitGate.controlTime !== undefined) {
+        const controlTime = pendingTwoQubitGate.controlTime;
+        const x = startX + controlTime * spacing;
+        const highlightRect = new Konva.Rect({
+            x: x - spacing / 2,
+            y: 0,
+            width: spacing,
+            height: 40 + numQubits * qubitSpacing,
+            fill: 'rgba(106, 157, 206, 0.1)', // Light blue highlight
+            stroke: 'rgba(106, 157, 206, 0.3)',
+            strokeWidth: 2,
+            dash: [4, 4],
+            listening: false,
+            name: 'control-time-highlight',
+        });
+        staticLayer.add(highlightRect);
+        highlightRect.moveToBottom(); // Behind gates but visible
+    }
     
     for (let q = qubitsToRender.start; q < qubitsToRender.end; q++) {
         const y = 40 + q * qubitSpacing;

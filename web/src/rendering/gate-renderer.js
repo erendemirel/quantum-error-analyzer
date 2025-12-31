@@ -177,6 +177,27 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
         // If overlapping, put single-qubit gate on top and we'll need to break the line
         const zIndex = overlappingTwoQubitGate ? 15 : 10;
         
+        // Determine if gate has been executed and adjust colors/opacity accordingly
+        const isExecuted = time < currentTime;
+        // Helper to darken a color (reduce brightness while preserving hue)
+        const darkenColor = (color) => {
+            if (color.startsWith('#')) {
+                const r = parseInt(color.slice(1, 3), 16);
+                const g = parseInt(color.slice(3, 5), 16);
+                const b = parseInt(color.slice(5, 7), 16);
+                const darkR = Math.floor(r * 0.6);
+                const darkG = Math.floor(g * 0.6);
+                const darkB = Math.floor(b * 0.6);
+                return `#${darkR.toString(16).padStart(2, '0')}${darkG.toString(16).padStart(2, '0')}${darkB.toString(16).padStart(2, '0')}`;
+            }
+            return color;
+        };
+        // Use same blue as CNOT gates, darkened when executed
+        const singleGateColor = '#6A9DCE';
+        const boxStroke = isExecuted ? darkenColor(singleGateColor) : singleGateColor;
+        const gateOpacity = isExecuted ? 0.9 : 1;
+        const strokeWidth = isExecuted ? 2.5 : 2;
+        
         // Gate box - centered at (x, y)
         const box = new Konva.Rect({
             x: x - 15,
@@ -184,10 +205,10 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
             width: 30,
             height: 30,
             fill: 'white',
-            stroke: time < currentTime ? '#463a47' : '#6A9DCE',
-            strokeWidth: time < currentTime ? 2.5 : 2,
+            stroke: boxStroke,
+            strokeWidth: strokeWidth,
             cornerRadius: 4,
-            opacity: time < currentTime ? 0.9 : 1,
+            opacity: gateOpacity,
         });
         addGateInteractivity(box, qubit);
         layer.add(box);
@@ -197,11 +218,12 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
         // Cache the box for better performance (caches rendered bitmap)
         box.cache();
         
-        // Gate symbol text - center at (x, y)
+        // Gate symbol text - center at (x, y), adjust opacity if executed
         const textContent = gateType === 'Sdg' ? 'S†' : gateType;
         const textNode = createCenteredText(x, y, textContent, qubit);
         if (textNode) {
             textNode.zIndex(zIndex + 1);
+            textNode.opacity(gateOpacity);
             // Always move to top - since we render two-qubit gates first, overlapping gates will be on top
             textNode.moveToTop();
             // Cache text rendering (most expensive operation)
@@ -264,12 +286,37 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
                 }
             }
             
+            // Determine if gate has been executed and adjust colors/opacity accordingly
+            const isExecuted = time < currentTime;
+            // Helper to darken a color (reduce brightness while preserving hue)
+            const darkenColor = (color) => {
+                // For hex colors, reduce brightness by ~40%
+                if (color.startsWith('#')) {
+                    const r = parseInt(color.slice(1, 3), 16);
+                    const g = parseInt(color.slice(3, 5), 16);
+                    const b = parseInt(color.slice(5, 7), 16);
+                    const darkR = Math.floor(r * 0.6);
+                    const darkG = Math.floor(g * 0.6);
+                    const darkB = Math.floor(b * 0.6);
+                    return `#${darkR.toString(16).padStart(2, '0')}${darkG.toString(16).padStart(2, '0')}${darkB.toString(16).padStart(2, '0')}`;
+                }
+                return color;
+            };
+            // Preserve colors but darken them when executed
+            const futureColor = allTwoQubitGatesAtTime.length > 1 ? gateColor : '#6A9DCE';
+            const lineColor = isExecuted ? darkenColor('#333') : '#333';
+            const controlDotColor = isExecuted ? darkenColor(gateColor) : gateColor;
+            const targetBoxStroke = isExecuted ? darkenColor(futureColor) : futureColor;
+            const gateOpacity = isExecuted ? 0.9 : 1;
+            const strokeWidth = isExecuted ? 2.5 : 2;
+            
             // Only draw line if we have at least start and end points
             if (linePoints.length >= 4) {
                 const line = new Konva.Line({
                     points: linePoints,
-                    stroke: '#333',
-                    strokeWidth: 2,
+                    stroke: lineColor,
+                    strokeWidth: strokeWidth,
+                    opacity: gateOpacity,
                 });
                 addGateInteractivity(line, control);
                 layer.add(line);
@@ -279,12 +326,13 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
                 line.cache();
             }
             
-            // Control dot - use color based on position among two-qubit gates
+            // Control dot - use color based on position among two-qubit gates, darker if executed
             const controlDot = new Konva.Circle({
                 x: x,
                 y: yControl,
                 radius: 5,
-                fill: gateColor,
+                fill: controlDotColor,
+                opacity: gateOpacity,
             });
             addGateInteractivity(controlDot, control);
             layer.add(controlDot);
@@ -293,17 +341,17 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
             // Cache the control dot
             controlDot.cache();
             
-            // Target box
+            // Target box - use gateColor for stroke when multiple gates overlap, darker if executed
             const targetBox = new Konva.Rect({
                 x: x - 15,
                 y: yTarget - 15,
                 width: 30,
                 height: 30,
                 fill: 'white',
-                stroke: time < currentTime ? '#463a47' : '#6A9DCE',
-                strokeWidth: time < currentTime ? 2.5 : 2,
+                stroke: targetBoxStroke,
+                strokeWidth: strokeWidth,
                 cornerRadius: 4,
-                opacity: time < currentTime ? 0.9 : 1,
+                opacity: gateOpacity,
             });
             addGateInteractivity(targetBox, target);
             layer.add(targetBox);
@@ -312,10 +360,11 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
             // Cache the target box
             targetBox.cache();
             
-            // Target symbol - center at (x, yTarget)
+            // Target symbol - center at (x, yTarget), adjust opacity if executed
             const targetText = createCenteredText(x, yTarget, '⊕', target);
             // Cache text rendering
             if (targetText) {
+                targetText.opacity(gateOpacity);
                 targetText.cache();
             }
             
@@ -367,12 +416,33 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
                 linePoints.push(x, yTarget);
             }
             
+            // Determine if gate has been executed and adjust colors/opacity accordingly
+            const isExecuted = time < currentTime;
+            // Helper to darken a color (reduce brightness while preserving hue)
+            const darkenColor = (color) => {
+                if (color.startsWith('#')) {
+                    const r = parseInt(color.slice(1, 3), 16);
+                    const g = parseInt(color.slice(3, 5), 16);
+                    const b = parseInt(color.slice(5, 7), 16);
+                    const darkR = Math.floor(r * 0.6);
+                    const darkG = Math.floor(g * 0.6);
+                    const darkB = Math.floor(b * 0.6);
+                    return `#${darkR.toString(16).padStart(2, '0')}${darkG.toString(16).padStart(2, '0')}${darkB.toString(16).padStart(2, '0')}`;
+                }
+                return color;
+            };
+            // Preserve colors but darken them when executed
+            const dotColor = isExecuted ? darkenColor(gateColor) : gateColor;
+            const gateOpacity = isExecuted ? 0.9 : 1;
+            const strokeWidth = isExecuted ? 2.5 : 2;
+            
             // Only draw line if we have at least start and end points
             if (linePoints.length >= 4) {
                 const line = new Konva.Line({
                     points: linePoints,
-                    stroke: '#333',
-                    strokeWidth: 2,
+                    stroke: isExecuted ? darkenColor('#333') : '#333',
+                    strokeWidth: strokeWidth,
+                    opacity: gateOpacity,
                 });
                 addGateInteractivity(line, control);
                 layer.add(line);
@@ -382,14 +452,15 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
                 line.cache();
             }
             
-            // Control and target dots - use color based on position among two-qubit gates
+            // Control and target dots - use color based on position among two-qubit gates, darker if executed
             [yControl, yTarget].forEach((y, idx) => {
                 const qubit = idx === 0 ? control : target;
                 const dot = new Konva.Circle({
                     x: x,
                     y: y,
                     radius: 5,
-                    fill: gateColor,
+                    fill: dotColor,
+                    opacity: gateOpacity,
                 });
                 addGateInteractivity(dot, qubit);
                 layer.add(dot);
@@ -445,12 +516,33 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
                 linePoints.push(x, y2);
             }
             
+            // Determine if gate has been executed and adjust colors/opacity accordingly
+            const isExecuted = time < currentTime;
+            // Helper to darken a color (reduce brightness while preserving hue)
+            const darkenColor = (color) => {
+                if (color.startsWith('#')) {
+                    const r = parseInt(color.slice(1, 3), 16);
+                    const g = parseInt(color.slice(3, 5), 16);
+                    const b = parseInt(color.slice(5, 7), 16);
+                    const darkR = Math.floor(r * 0.6);
+                    const darkG = Math.floor(g * 0.6);
+                    const darkB = Math.floor(b * 0.6);
+                    return `#${darkR.toString(16).padStart(2, '0')}${darkG.toString(16).padStart(2, '0')}${darkB.toString(16).padStart(2, '0')}`;
+                }
+                return color;
+            };
+            // Preserve colors but darken them when executed
+            const swapColor = isExecuted ? darkenColor(gateColor) : gateColor;
+            const gateOpacity = isExecuted ? 0.9 : 1;
+            const strokeWidth = isExecuted ? 2.5 : 2;
+            
             // Only draw line if we have at least start and end points
             if (linePoints.length >= 4) {
                 const line = new Konva.Line({
                     points: linePoints,
-                    stroke: '#333',
-                    strokeWidth: 2,
+                    stroke: isExecuted ? darkenColor('#333') : '#333',
+                    strokeWidth: strokeWidth,
+                    opacity: gateOpacity,
                 });
                 addGateInteractivity(line, q1);
                 layer.add(line);
@@ -461,17 +553,19 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
             
             // SWAP symbols - center at (x, y1) and (x, y2)
             // Use higher z-index if overlapping with single-qubit gates
-            // Use color based on position among two-qubit gates
+            // Use color based on position among two-qubit gates, darker if executed
             const zIndex = overlappingSingleGates.length > 0 ? 15 : 11;
-            const swapText1 = createCenteredText(x, y1, '×', q1, gateColor);
-            const swapText2 = createCenteredText(x, y2, '×', q2, gateColor);
+            const swapText1 = createCenteredText(x, y1, '×', q1, swapColor);
+            const swapText2 = createCenteredText(x, y2, '×', q2, swapColor);
             if (swapText1) {
                 swapText1.zIndex(zIndex);
+                swapText1.opacity(gateOpacity);
                 swapText1.moveToTop();
                 swapText1.cache();
             }
             if (swapText2) {
                 swapText2.zIndex(zIndex);
+                swapText2.opacity(gateOpacity);
                 swapText2.moveToTop();
                 swapText2.cache();
             }

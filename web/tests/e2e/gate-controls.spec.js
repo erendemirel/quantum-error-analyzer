@@ -648,6 +648,98 @@ test.describe('Gate Controls', () => {
     await verifyGateAtTime(page, 'H', [2], 0);
   });
 
+  test('two-qubit gate requires both clicks at same time step', async ({ page }) => {
+    const circuitView = page.locator('#circuit-view');
+    
+    // Step 1: Increase to 3 qubits
+    await page.locator('#qubit-count-input').fill('3');
+    await page.click('#change-qubit-count-btn');
+    await page.waitForTimeout(500);
+    
+    // Step 2: Select CNOT gate
+    await page.click('.gate-btn:has-text("CNOT")');
+    await page.waitForSelector('.gate-btn:has-text("CNOT").active', { timeout: 2000 });
+    await page.waitForFunction(() => {
+      return window.selectedGate === 'CNOT';
+    }, { timeout: 2000 });
+    await page.waitForTimeout(500);
+    
+    // Step 3: First click - control qubit 0 at time 0
+    await clickCircuitPosition(page, 0, 0);
+    // Wait for pending state to be set with controlTime
+    await page.waitForFunction(() => {
+      return window.pendingTwoQubitGate !== null && 
+             window.pendingTwoQubitGate.controlQubit === 0 &&
+             window.pendingTwoQubitGate.controlTime === 0 &&
+             window.pendingTwoQubitGate.gateType === 'CNOT';
+    }, { timeout: 5000 });
+    await page.waitForTimeout(500);
+    
+    // Step 4: Second click - target qubit 1 at time 1 (different time step)
+    await clickCircuitPosition(page, 1, 1);
+    await page.waitForTimeout(500);
+    
+    // Step 5: Verify notification appears
+    const notification = await page.locator('#user-notification');
+    await expect(notification).toBeVisible({ timeout: 2000 });
+    const notificationText = await notification.textContent();
+    expect(notificationText).toContain('Cannot place CNOT gate');
+    expect(notificationText).toContain('control and target must be at the same time step');
+    expect(notificationText).toContain('time 0');
+    expect(notificationText).toContain('time 1');
+    
+    // Step 6: Verify gate was NOT placed
+    const gates = await getCircuitGates(page);
+    const timePositions = await getGateTimePositions(page);
+    let cnotFound = false;
+    for (let i = 0; i < gates.length; i++) {
+      if (gates[i].Two && gates[i].Two.CNOT) {
+        const cnot = gates[i].Two.CNOT;
+        if (cnot.control === 0 && cnot.target === 1) {
+          cnotFound = true;
+          break;
+        }
+      }
+    }
+    expect(cnotFound).toBe(false);
+    
+    // Step 7: Verify pending state is still active (user can try again)
+    const stillPending = await page.evaluate(() => {
+      return window.pendingTwoQubitGate !== null && 
+             window.pendingTwoQubitGate.controlQubit === 0 &&
+             window.pendingTwoQubitGate.controlTime === 0;
+    });
+    expect(stillPending).toBe(true);
+    
+    // Step 8: Now click target at the correct time (time 0) - should succeed
+    await clickCircuitPosition(page, 1, 0);
+    // Wait for gate to be placed
+    await page.waitForFunction(() => {
+      if (window.pendingTwoQubitGate !== null) return false; // Still pending
+      const gates = window.circuit?.get_gates() || [];
+      const timePositions = window.gateTimePositions || new Map();
+      for (let i = 0; i < gates.length; i++) {
+        if (timePositions.get(i) === 0 && gates[i].Two?.CNOT) {
+          const cnot = gates[i].Two.CNOT;
+          if (cnot.control === 0 && cnot.target === 1) {
+            return true; // CNOT found
+          }
+        }
+      }
+      return false;
+    }, { timeout: 5000 });
+    await page.waitForTimeout(500);
+    
+    // Step 9: Verify CNOT is now placed at time 0
+    await verifyGateAtTime(page, 'CNOT', [0, 1], 0);
+    
+    // Step 10: Verify notification is gone (should be cleared on successful placement)
+    // Wait a bit for the clear animation to complete
+    await page.waitForTimeout(500);
+    const notificationAfter = await page.locator('#user-notification');
+    await expect(notificationAfter).not.toBeVisible({ timeout: 2000 });
+  });
+
   test('placing two-qubit gate with no overlap works in parallel', async ({ page }) => {
     const circuitView = page.locator('#circuit-view');
     
@@ -1456,6 +1548,236 @@ test.describe('Gate Controls', () => {
     expect(colorInfo.cnot).not.toBe(colorInfo.cz);
     expect(colorInfo.cz).not.toBe(colorInfo.swap);
     expect(colorInfo.cnot).not.toBe(colorInfo.swap);
+  });
+
+  test('gates highlight correctly when simulation steps forward', async ({ page }) => {
+    // Step 1: Set up circuit with single-qubit and two-qubit gates
+    await page.locator('#qubit-count-input').fill('3');
+    await page.click('#change-qubit-count-btn');
+    await page.waitForTimeout(500);
+    
+    // Place H gate at time 0
+    await page.click('.gate-btn:has-text("H")');
+    await clickCircuitPosition(page, 0, 0);
+    await page.waitForTimeout(500);
+    
+    // Place CNOT gate at time 1
+    await page.click('.gate-btn:has-text("CNOT")');
+    await page.waitForFunction(() => window.selectedGate === 'CNOT', { timeout: 2000 });
+    await clickCircuitPosition(page, 0, 1); // Control
+    await page.waitForTimeout(500);
+    await clickCircuitPosition(page, 1, 1); // Target
+    await page.waitForTimeout(500);
+    
+    // Place CZ gate at time 2
+    await page.click('.gate-btn:has-text("CZ")');
+    await page.waitForFunction(() => window.selectedGate === 'CZ', { timeout: 2000 });
+    await clickCircuitPosition(page, 1, 2); // Control
+    await page.waitForTimeout(500);
+    await clickCircuitPosition(page, 2, 2); // Target
+    await page.waitForTimeout(500);
+    
+    // Step 2: Verify gates are bright before execution
+    const initialGateInfo = await page.evaluate(() => {
+      const layer = window.konvaLayer;
+      if (!layer) return null;
+      
+      // Find H gate box at Q0, time 0 (x = 100)
+      const hBox = layer.findOne(node => {
+        return node.className === 'Rect' && 
+               Math.abs(node.x() - 85) < 5 && // x - 15
+               Math.abs(node.y() - 25) < 5; // y - 15, Q0: 40 - 15 = 25
+      });
+      
+      // Find CNOT control dot at Q0, time 1 (x = 200)
+      const cnotDot = layer.findOne(node => {
+        return node.className === 'Circle' && 
+               Math.abs(node.x() - 200) < 5 && 
+               Math.abs(node.y() - 40) < 5; // Q0: 40
+      });
+      
+      // Find CNOT target box at Q1, time 1 (x = 200)
+      const cnotBox = layer.findOne(node => {
+        return node.className === 'Rect' && 
+               Math.abs(node.x() - 185) < 5 && // x - 15
+               Math.abs(node.y() - 105) < 5; // Q1: 40 + 80 - 15 = 105
+      });
+      
+      // Find CZ dots at Q1 and Q2, time 2 (x = 300)
+      const czDots = layer.find(node => {
+        return node.className === 'Circle' && 
+               Math.abs(node.x() - 300) < 5 && 
+               (Math.abs(node.y() - 120) < 5 || Math.abs(node.y() - 200) < 5); // Q1: 120, Q2: 200
+      });
+      
+      return {
+        hBoxStroke: hBox ? hBox.stroke() : null,
+        hBoxOpacity: hBox ? hBox.opacity() : null,
+        cnotDotFill: cnotDot ? cnotDot.fill() : null,
+        cnotDotOpacity: cnotDot ? cnotDot.opacity() : null,
+        cnotBoxStroke: cnotBox ? cnotBox.stroke() : null,
+        cnotBoxOpacity: cnotBox ? cnotBox.opacity() : null,
+        czDotsCount: czDots.length,
+        czDotFill: czDots.length > 0 ? czDots[0].fill() : null,
+        czDotOpacity: czDots.length > 0 ? czDots[0].opacity() : null,
+      };
+    });
+    
+    expect(initialGateInfo).not.toBeNull();
+    // Before execution: gates should be bright blue
+    // Single-qubit gates use #6A9DCE
+    expect(initialGateInfo.hBoxStroke).toBe('#6A9DCE'); // Bright blue
+    expect(initialGateInfo.hBoxOpacity).toBe(1);
+    // Two-qubit gates: control dots use palette color (#7AB9E5 is first in palette)
+    // Target box uses #6A9DCE when there's only one gate at a time step
+    // Since CNOT and CZ are at different time steps, control dots use #7AB9E5, target boxes use #6A9DCE
+    expect(initialGateInfo.cnotDotFill).toBe('#7AB9E5'); // Palette color (first in palette)
+    expect(initialGateInfo.cnotDotOpacity).toBe(1);
+    expect(initialGateInfo.cnotBoxStroke).toBe('#6A9DCE'); // Default blue (single gate at time step)
+    expect(initialGateInfo.cnotBoxOpacity).toBe(1);
+    expect(initialGateInfo.czDotsCount).toBe(2);
+    expect(initialGateInfo.czDotFill).toBe('#7AB9E5'); // Palette color (first in palette)
+    expect(initialGateInfo.czDotOpacity).toBe(1);
+    
+    // Step 3: Step forward to time 1 (execute H gate)
+    await page.click('#step-forward-btn');
+    await page.waitForTimeout(500);
+    
+    // Verify H gate is now darkened
+    const afterStep1Info = await page.evaluate(() => {
+      const layer = window.konvaLayer;
+      if (!layer) return null;
+      
+      const hBox = layer.findOne(node => {
+        return node.className === 'Rect' && 
+               Math.abs(node.x() - 85) < 5 && 
+               Math.abs(node.y() - 25) < 5;
+      });
+      
+      return {
+        hBoxStroke: hBox ? hBox.stroke() : null,
+        hBoxOpacity: hBox ? hBox.opacity() : null,
+      };
+    });
+    
+    // H gate should be darkened (but still blue, not gray)
+    expect(afterStep1Info.hBoxStroke).not.toBe('#6A9DCE'); // Should be darker
+    expect(afterStep1Info.hBoxStroke).toMatch(/^#[0-9a-f]{6}$/i); // Should still be a color
+    // Darkened blue should have lower RGB values
+    const hBoxRgb = afterStep1Info.hBoxStroke.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+    const originalRgb = '#6A9DCE'.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+    if (hBoxRgb && originalRgb) {
+      const hR = parseInt(hBoxRgb[1], 16);
+      const oR = parseInt(originalRgb[1], 16);
+      expect(hR).toBeLessThan(oR); // Darkened version should have lower red value
+    }
+    expect(afterStep1Info.hBoxOpacity).toBe(0.9); // Reduced opacity
+    
+    // CNOT should still be bright (not executed yet)
+    const cnotAfterStep1 = await page.evaluate(() => {
+      const layer = window.konvaLayer;
+      if (!layer) return null;
+      const cnotDot = layer.findOne(node => {
+        return node.className === 'Circle' && 
+               Math.abs(node.x() - 200) < 5 && 
+               Math.abs(node.y() - 40) < 5;
+      });
+      return cnotDot ? { fill: cnotDot.fill(), opacity: cnotDot.opacity() } : null;
+    });
+    expect(cnotAfterStep1.fill).toBe('#7AB9E5'); // Still bright (palette color)
+    expect(cnotAfterStep1.opacity).toBe(1);
+    
+    // Step 4: Step forward to time 2 (execute CNOT gate)
+    await page.click('#step-forward-btn');
+    await page.waitForTimeout(500);
+    
+    // Verify CNOT is now darkened
+    const afterStep2Info = await page.evaluate(() => {
+      const layer = window.konvaLayer;
+      if (!layer) return null;
+      
+      const cnotDot = layer.findOne(node => {
+        return node.className === 'Circle' && 
+               Math.abs(node.x() - 200) < 5 && 
+               Math.abs(node.y() - 40) < 5;
+      });
+      
+      const cnotBox = layer.findOne(node => {
+        return node.className === 'Rect' && 
+               Math.abs(node.x() - 185) < 5 && 
+               Math.abs(node.y() - 105) < 5;
+      });
+      
+      return {
+        cnotDotFill: cnotDot ? cnotDot.fill() : null,
+        cnotDotOpacity: cnotDot ? cnotDot.opacity() : null,
+        cnotBoxStroke: cnotBox ? cnotBox.stroke() : null,
+        cnotBoxOpacity: cnotBox ? cnotBox.opacity() : null,
+      };
+    });
+    
+    // CNOT should be darkened (but still blue, preserving color)
+    expect(afterStep2Info.cnotDotFill).not.toBe('#7AB9E5'); // Should be darker
+    expect(afterStep2Info.cnotDotFill).toMatch(/^#[0-9a-f]{6}$/i); // Should still be a color
+    // Verify it's a darker version of the original palette color
+    const cnotRgb = afterStep2Info.cnotDotFill.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+    const originalCnotRgb = '#7AB9E5'.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+    if (cnotRgb && originalCnotRgb) {
+      const cR = parseInt(cnotRgb[1], 16);
+      const oR = parseInt(originalCnotRgb[1], 16);
+      expect(cR).toBeLessThan(oR); // Darkened version
+    }
+    expect(afterStep2Info.cnotDotOpacity).toBe(0.9);
+    expect(afterStep2Info.cnotBoxStroke).not.toBe('#6A9DCE'); // Should be darker
+    expect(afterStep2Info.cnotBoxOpacity).toBe(0.9);
+    
+    // CZ should still be bright (not executed yet)
+    const czAfterStep2 = await page.evaluate(() => {
+      const layer = window.konvaLayer;
+      if (!layer) return null;
+      const czDots = layer.find(node => {
+        return node.className === 'Circle' && 
+               Math.abs(node.x() - 300) < 5 && 
+               (Math.abs(node.y() - 120) < 5 || Math.abs(node.y() - 200) < 5);
+      });
+      return czDots.length > 0 ? { fill: czDots[0].fill(), opacity: czDots[0].opacity() } : null;
+    });
+    expect(czAfterStep2.fill).toBe('#7AB9E5'); // Still bright (palette color)
+    expect(czAfterStep2.opacity).toBe(1);
+    
+    // Step 5: Step forward to time 3 (execute CZ gate)
+    await page.click('#step-forward-btn');
+    await page.waitForTimeout(500);
+    
+    // Verify CZ is now darkened
+    const afterStep3Info = await page.evaluate(() => {
+      const layer = window.konvaLayer;
+      if (!layer) return null;
+      
+      const czDots = layer.find(node => {
+        return node.className === 'Circle' && 
+               Math.abs(node.x() - 300) < 5 && 
+               (Math.abs(node.y() - 120) < 5 || Math.abs(node.y() - 200) < 5);
+      });
+      
+      return {
+        czDotFill: czDots.length > 0 ? czDots[0].fill() : null,
+        czDotOpacity: czDots.length > 0 ? czDots[0].opacity() : null,
+      };
+    });
+    
+    // CZ should be darkened (but still blue, preserving color)
+    expect(afterStep3Info.czDotFill).not.toBe('#7AB9E5'); // Should be darker
+    expect(afterStep3Info.czDotFill).toMatch(/^#[0-9a-f]{6}$/i); // Should still be a color
+    // Verify it's a darker version of the original palette color
+    const czRgb = afterStep3Info.czDotFill.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+    const originalCzRgb = '#7AB9E5'.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+    if (czRgb && originalCzRgb) {
+      const cR = parseInt(czRgb[1], 16);
+      const oR = parseInt(originalCzRgb[1], 16);
+      expect(cR).toBeLessThan(oR); // Darkened version
+    }
+    expect(afterStep3Info.czDotOpacity).toBe(0.9);
   });
 
   test('single-qubit gate overlapping with two-qubit gate is rendered on top and breaks line', async ({ page }) => {
