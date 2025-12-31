@@ -447,10 +447,23 @@ export function renderCircuit() {
             };
             
             gateTimeMap.forEach((gatesAtTime, timeSlot) => {
-                gatesAtTime.forEach(({gate}) => {
+                // Sort gates: render two-qubit gates first, then single-qubit gates
+                // This ensures overlapping single-qubit gates (which have higher z-index) are rendered last
+                // and will be on top when moveToTop() is called
+                const sortedGates = [...gatesAtTime].sort((a, b) => {
+                    // Two-qubit gates first (return -1), then single-qubit gates (return 1)
+                    const aIsTwo = a.gate.Two ? true : false;
+                    const bIsTwo = b.gate.Two ? true : false;
+                    if (aIsTwo && !bIsTwo) return -1;
+                    if (!aIsTwo && bIsTwo) return 1;
+                    return 0; // Keep original order within same type
+                });
+                
+                sortedGates.forEach(({gate}) => {
                     // Only render gate if it's on visible qubits (for large circuits)
                     if (shouldRenderGate(gate)) {
-                        renderGate(konvaLayer, gate, timeSlot, spacing, qubitSpacing, startX, clickAreaMap);
+                        // Pass all gates at this time step for context (for coloring and overlap handling)
+                        renderGate(konvaLayer, gate, timeSlot, spacing, qubitSpacing, startX, clickAreaMap, gatesAtTime);
                     }
                 });
             });
@@ -583,4 +596,11 @@ export function renderCircuit() {
             }
         }, 0);
     });
+    
+    // Expose Konva stage and layers for testing
+    if (typeof window !== 'undefined') {
+        window.konvaStage = konvaStage;
+        window.konvaLayer = konvaLayer;
+        window.staticLayer = staticLayer;
+    }
 }

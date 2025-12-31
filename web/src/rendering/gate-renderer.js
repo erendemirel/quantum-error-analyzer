@@ -3,8 +3,40 @@ import Konva from 'konva';
 import { selectedGate, currentTime } from '../state.js';
 import { handleCircuitClick, handleCircuitRightClick } from '../events/circuit-handlers.js';
 
-export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, clickAreaMap) {
+export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, clickAreaMap, gatesAtTime = []) {
     const x = startX + time * spacing;
+    
+    // Helper to get qubits from a gate
+    const getGateQubits = (g) => {
+        if (g.Single) return [g.Single.qubit];
+        if (g.Two) {
+            if (g.Two.CNOT) return [g.Two.CNOT.control, g.Two.CNOT.target];
+            if (g.Two.CZ) return [g.Two.CZ.control, g.Two.CZ.target];
+            if (g.Two.SWAP) return [g.Two.SWAP.qubit1, g.Two.SWAP.qubit2];
+        }
+        return [];
+    };
+    
+    // Check if there are single-qubit gates that overlap with two-qubit gates at this time
+    const singleQubitGatesAtTime = gatesAtTime.filter(({gate: g}) => g.Single);
+    const allTwoQubitGatesAtTime = gatesAtTime.filter(({gate: g}) => g.Two);
+    
+    // Count two-qubit gates at this time step (excluding current gate)
+    const twoQubitGateIndex = gatesAtTime.findIndex(({gate: g}) => g === gate && g.Two);
+    // Assign a color index based on position among two-qubit gates
+    const colorIndex = twoQubitGateIndex >= 0 ? 
+        gatesAtTime.slice(0, twoQubitGateIndex).filter(({gate: g}) => g.Two).length : 0;
+    
+    // Color palette for two-qubit gate ends (control/target dots)
+    const twoQubitColors = [
+        '#7AB9E5', // Blue (default)
+        '#E74C3C', // Red
+        '#2ECC71', // Green
+        '#F39C12', // Orange
+        '#9B59B6', // Purple
+        '#1ABC9C', // Teal
+    ];
+    const gateColor = twoQubitColors[colorIndex % twoQubitColors.length];
     
     // Helper function to add interactivity to gate elements
     const addGateInteractivity = (element, qubit) => {
@@ -82,7 +114,7 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
     };
     
     // Helper to create centered text in a box
-    const createCenteredText = (centerX, centerY, textContent, qubit) => {
+    const createCenteredText = (centerX, centerY, textContent, qubit, fillColor = '#333') => {
         // Character-specific adjustments - H, X, Y, Z look good with base offsets
         // Others need different adjustments
         let offsetY = -10; // Base: shift up by 10px
@@ -118,7 +150,7 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
             fontSize: 18,
             fontFamily: 'Courier New',
             fontStyle: '600',
-            fill: '#333',
+            fill: fillColor,
             align: 'center',
         });
         
@@ -136,6 +168,15 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
         const gateType = single.gate;
         const y = 40 + qubit * qubitSpacing;
         
+        // Check if this single-qubit gate overlaps with any two-qubit gate at this time
+        const overlappingTwoQubitGate = allTwoQubitGatesAtTime.find(({gate: g}) => {
+            const qubits = getGateQubits(g);
+            return qubits.includes(qubit);
+        });
+        
+        // If overlapping, put single-qubit gate on top and we'll need to break the line
+        const zIndex = overlappingTwoQubitGate ? 15 : 10;
+        
         // Gate box - centered at (x, y)
         const box = new Konva.Rect({
             x: x - 15,
@@ -150,7 +191,8 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
         });
         addGateInteractivity(box, qubit);
         layer.add(box);
-        box.zIndex(10);
+        box.zIndex(zIndex);
+        // Always move to top - since we render two-qubit gates first, overlapping gates will be on top
         box.moveToTop();
         // Cache the box for better performance (caches rendered bitmap)
         box.cache();
@@ -158,8 +200,11 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
         // Gate symbol text - center at (x, y)
         const textContent = gateType === 'Sdg' ? 'S†' : gateType;
         const textNode = createCenteredText(x, y, textContent, qubit);
-        // Cache text rendering (most expensive operation)
         if (textNode) {
+            textNode.zIndex(zIndex + 1);
+            // Always move to top - since we render two-qubit gates first, overlapping gates will be on top
+            textNode.moveToTop();
+            // Cache text rendering (most expensive operation)
             textNode.cache();
         }
         
@@ -172,25 +217,74 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
             const yControl = 40 + control * qubitSpacing;
             const yTarget = 40 + target * qubitSpacing;
             
-            // CNOT line
-            const line = new Konva.Line({
-                points: [x, yControl, x, yTarget],
-                stroke: '#333',
-                strokeWidth: 2,
+            // Check if there are single-qubit gates overlapping with this two-qubit gate
+            const overlappingSingleGates = singleQubitGatesAtTime.filter(({gate: g}) => {
+                const qubit = g.Single.qubit;
+                return qubit === control || qubit === target;
             });
-            addGateInteractivity(line, control);
-            layer.add(line);
-            line.zIndex(10);
-            line.moveToTop();
-            // Cache the line for better performance
-            line.cache();
             
-            // Control dot
+            // Build line points, breaking at overlapping single-qubit gates
+            let linePoints;
+            if (overlappingSingleGates.length === 0) {
+                // No overlaps - simple line from control to target
+                linePoints = [x, yControl, x, yTarget];
+            } else {
+                // Has overlaps - break line at overlapping gates
+                linePoints = [x, yControl];
+                const gateBoxYStart = (y) => y - 15;
+                const gateBoxYEnd = (y) => y + 15;
+                
+                // Sort overlapping gates by their y position
+                const overlappingYs = overlappingSingleGates.map(({gate: g}) => {
+                    const q = g.Single.qubit;
+                    return 40 + q * qubitSpacing;
+                }).sort((a, b) => a - b);
+                
+                // Add line segments, skipping areas where single-qubit gates overlap
+                let currentY = yControl;
+                for (const overlapY of overlappingYs) {
+                    const overlapStart = gateBoxYStart(overlapY);
+                    const overlapEnd = gateBoxYEnd(overlapY);
+                    
+                    // If we haven't reached the overlap yet, draw line up to just before it
+                    if (currentY < overlapStart) {
+                        linePoints.push(x, overlapStart);
+                    }
+                    // Skip the overlap area - update currentY to just after the overlap
+                    currentY = Math.max(currentY, overlapEnd);
+                    // Add a point just after the overlap to continue the line
+                    if (currentY < yTarget) {
+                        linePoints.push(x, currentY);
+                    }
+                }
+                
+                // Draw final segment to target if we haven't reached it
+                if (currentY < yTarget) {
+                    linePoints.push(x, yTarget);
+                }
+            }
+            
+            // Only draw line if we have at least start and end points
+            if (linePoints.length >= 4) {
+                const line = new Konva.Line({
+                    points: linePoints,
+                    stroke: '#333',
+                    strokeWidth: 2,
+                });
+                addGateInteractivity(line, control);
+                layer.add(line);
+                line.zIndex(10);
+                line.moveToTop();
+                // Cache the line for better performance
+                line.cache();
+            }
+            
+            // Control dot - use color based on position among two-qubit gates
             const controlDot = new Konva.Circle({
                 x: x,
                 y: yControl,
                 radius: 5,
-                fill: '#7AB9E5',
+                fill: gateColor,
             });
             addGateInteractivity(controlDot, control);
             layer.add(controlDot);
@@ -232,27 +326,70 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
             const yControl = 40 + control * qubitSpacing;
             const yTarget = 40 + target * qubitSpacing;
             
-            // CZ line
-            const line = new Konva.Line({
-                points: [x, yControl, x, yTarget],
-                stroke: '#333',
-                strokeWidth: 2,
+            // Check if there are single-qubit gates overlapping with this two-qubit gate
+            const overlappingSingleGates = singleQubitGatesAtTime.filter(({gate: g}) => {
+                const qubit = g.Single.qubit;
+                return qubit === control || qubit === target;
             });
-            addGateInteractivity(line, control);
-            layer.add(line);
-            line.zIndex(10);
-            line.moveToTop();
-            // Cache the line for better performance
-            line.cache();
             
-            // Control and target dots
+            // Build line points, breaking at overlapping single-qubit gates
+            const linePoints = [x, yControl];
+            const gateBoxHeight = 30;
+            const gateBoxYStart = (y) => y - 15;
+            const gateBoxYEnd = (y) => y + 15;
+            
+            // Sort overlapping gates by their y position
+            const overlappingYs = overlappingSingleGates.map(({gate: g}) => {
+                const q = g.Single.qubit;
+                return 40 + q * qubitSpacing;
+            }).sort((a, b) => a - b);
+            
+            // Add line segments, skipping areas where single-qubit gates overlap
+            let currentY = yControl;
+            for (const overlapY of overlappingYs) {
+                const overlapStart = gateBoxYStart(overlapY);
+                const overlapEnd = gateBoxYEnd(overlapY);
+                
+                // If we haven't reached the overlap yet, draw line up to just before it
+                if (currentY < overlapStart) {
+                    linePoints.push(x, overlapStart);
+                }
+                // Skip the overlap area - update currentY to just after the overlap
+                currentY = Math.max(currentY, overlapEnd);
+                // Add a point just after the overlap to continue the line
+                if (currentY < yTarget) {
+                    linePoints.push(x, currentY);
+                }
+            }
+            
+            // Draw final segment to target if we haven't reached it
+            if (currentY < yTarget) {
+                linePoints.push(x, yTarget);
+            }
+            
+            // Only draw line if we have at least start and end points
+            if (linePoints.length >= 4) {
+                const line = new Konva.Line({
+                    points: linePoints,
+                    stroke: '#333',
+                    strokeWidth: 2,
+                });
+                addGateInteractivity(line, control);
+                layer.add(line);
+                line.zIndex(10);
+                line.moveToTop();
+                // Cache the line for better performance
+                line.cache();
+            }
+            
+            // Control and target dots - use color based on position among two-qubit gates
             [yControl, yTarget].forEach((y, idx) => {
                 const qubit = idx === 0 ? control : target;
                 const dot = new Konva.Circle({
                     x: x,
                     y: y,
                     radius: 5,
-                    fill: '#7AB9E5',
+                    fill: gateColor,
                 });
                 addGateInteractivity(dot, qubit);
                 layer.add(dot);
@@ -268,26 +405,74 @@ export function renderGate(layer, gate, time, spacing, qubitSpacing, startX, cli
             const y1 = 40 + q1 * qubitSpacing;
             const y2 = 40 + q2 * qubitSpacing;
             
-            // SWAP line
-            const line = new Konva.Line({
-                points: [x, y1, x, y2],
-                stroke: '#333',
-                strokeWidth: 2,
+            // Check if there are single-qubit gates overlapping with this two-qubit gate
+            const overlappingSingleGates = singleQubitGatesAtTime.filter(({gate: g}) => {
+                const qubit = g.Single.qubit;
+                return qubit === q1 || qubit === q2;
             });
-            addGateInteractivity(line, q1);
-            layer.add(line);
-            line.zIndex(3);
-            // Cache the line for better performance
-            line.cache();
+            
+            // Build line points, breaking at overlapping single-qubit gates
+            const linePoints = [x, y1];
+            const gateBoxYStart = (y) => y - 15;
+            const gateBoxYEnd = (y) => y + 15;
+            
+            // Sort overlapping gates by their y position
+            const overlappingYs = overlappingSingleGates.map(({gate: g}) => {
+                const q = g.Single.qubit;
+                return 40 + q * qubitSpacing;
+            }).sort((a, b) => a - b);
+            
+            // Add line segments, skipping areas where single-qubit gates overlap
+            let currentY = y1;
+            for (const overlapY of overlappingYs) {
+                const overlapStart = gateBoxYStart(overlapY);
+                const overlapEnd = gateBoxYEnd(overlapY);
+                
+                // If we haven't reached the overlap yet, draw line up to just before it
+                if (currentY < overlapStart) {
+                    linePoints.push(x, overlapStart);
+                }
+                // Skip the overlap area - update currentY to just after the overlap
+                currentY = Math.max(currentY, overlapEnd);
+                // Add a point just after the overlap to continue the line
+                if (currentY < y2) {
+                    linePoints.push(x, currentY);
+                }
+            }
+            
+            // Draw final segment to target if we haven't reached it
+            if (currentY < y2) {
+                linePoints.push(x, y2);
+            }
+            
+            // Only draw line if we have at least start and end points
+            if (linePoints.length >= 4) {
+                const line = new Konva.Line({
+                    points: linePoints,
+                    stroke: '#333',
+                    strokeWidth: 2,
+                });
+                addGateInteractivity(line, q1);
+                layer.add(line);
+                line.zIndex(3);
+                // Cache the line for better performance
+                line.cache();
+            }
             
             // SWAP symbols - center at (x, y1) and (x, y2)
-            const swapText1 = createCenteredText(x, y1, '×', q1);
-            const swapText2 = createCenteredText(x, y2, '×', q2);
-            // Cache text rendering
+            // Use higher z-index if overlapping with single-qubit gates
+            // Use color based on position among two-qubit gates
+            const zIndex = overlappingSingleGates.length > 0 ? 15 : 11;
+            const swapText1 = createCenteredText(x, y1, '×', q1, gateColor);
+            const swapText2 = createCenteredText(x, y2, '×', q2, gateColor);
             if (swapText1) {
+                swapText1.zIndex(zIndex);
+                swapText1.moveToTop();
                 swapText1.cache();
             }
             if (swapText2) {
+                swapText2.zIndex(zIndex);
+                swapText2.moveToTop();
                 swapText2.cache();
             }
         }

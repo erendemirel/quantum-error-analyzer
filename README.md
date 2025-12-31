@@ -13,4 +13,4 @@ A quantum error analyzer for visualizing Pauli error propagation, tracking Pauli
 - Monte Carlo noise analysis
 - Syndrome extraction
 - Import/export functionality(JSON, LaTeX, QASM)
-- Fix UI issues
+- Fix any UI issues
