@@ -4,7 +4,7 @@ A quantum error analyzer for visualizing Pauli error propagation, tracking Pauli
 
 ### Current Features:
 
-- Visualization of Pauli error propagation through Clifford circuits
+- Visualization of Pauli error propagation through Clifford circuits. Supported gates: H, S, S†, X, Y, Z, CNOT, CZ, SWAP
 - Supports any number of qubits (limited by available memory)
 
 ### Roadmap:
@@ -12,5 +12,6 @@ A quantum error analyzer for visualizing Pauli error propagation, tracking Pauli
 - Pauli frame tracking
 - Monte Carlo noise analysis
 - Syndrome extraction
+- Logical vs physical error summary
 - Import/export functionality(JSON, LaTeX, QASM)
 - Fix any UI issues
