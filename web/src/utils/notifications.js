@@ -1,7 +1,7 @@
 // Non-blocking notification system
 let notificationTimeout = null;
 
-export function showNotification(message, duration = 3000) {
+export function showNotification(message, duration = 3000, type = 'error') {
     // Remove any existing notification
     const existing = document.getElementById('user-notification');
     if (existing) {
@@ -14,6 +14,9 @@ export function showNotification(message, duration = 3000) {
         notificationTimeout = null;
     }
     
+    // Determine background color based on type
+    const backgroundColor = type === 'success' ? '#27ae60' : '#e74c3c';
+    
     // Create notification element
     const notification = document.createElement('div');
     notification.id = 'user-notification';
@@ -21,7 +24,7 @@ export function showNotification(message, duration = 3000) {
         position: fixed;
         top: 20px;
         right: 20px;
-        background: #e74c3c;
+        background: ${backgroundColor};
         color: white;
         padding: 12px 20px;
         border-radius: 6px;

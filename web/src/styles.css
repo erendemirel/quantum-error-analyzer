@@ -31,6 +31,7 @@ body {
     max-width: 100%;
     box-sizing: border-box;
     overflow-x: hidden;
+    position: relative;
 }
 
 header {
@@ -57,6 +58,7 @@ main {
     /* Only prevent horizontal overflow, allow grid to work properly */
     overflow-x: hidden;
     overflow-y: visible;
+    position: relative;
 }
 
 /* Responsive design - Tablet and below */
@@ -90,6 +92,11 @@ main {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 15px;
+    }
+
+    .circuit-actions {
+        top: 50px;
+        right: 15px;
     }
 
     .circuit-container {
@@ -129,6 +136,18 @@ main {
     .gate-palette,
     .error-controls {
         padding: 12px;
+    }
+    
+    .circuit-actions {
+        top: 50px;
+        right: 10px;
+        gap: 6px;
+    }
+    
+    .circuit-action-btn {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        min-height: 32px;
     }
 
     .gate-buttons {
@@ -220,6 +239,22 @@ main {
     .gate-palette,
     .error-controls {
         padding: 10px;
+    }
+    
+    .circuit-actions {
+        top: 45px;
+        right: 5px;
+        gap: 4px;
+    }
+    
+    .circuit-action-btn {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+        min-height: 30px;
+    }
+    
+    .save-dropdown {
+        min-width: 140px;
     }
 
     .circuit-container {
@@ -453,6 +488,134 @@ main > * {
     background: #e6c85a;
     color: white;
     box-shadow: 0 2px 6px rgba(230, 200, 90, 0.3);
+}
+
+/* Circuit actions - positioned in space between header and main layout */
+.circuit-actions {
+    position: absolute;
+    top: 105px;
+    right: 265px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    pointer-events: auto;
+    z-index: 100;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Align with circuit container on larger screens */
+@media (min-width: 1200px) {
+    .circuit-actions {
+        right: calc(50% - 700px + 265px);
+    }
+}
+
+.circuit-action-btn {
+    padding: 5px 10px;
+    border: 2px solid #645966;
+    background: white;
+    color: #645966;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    min-height: 28px;
+    min-width: 70px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.circuit-action-btn:hover {
+    background: white;
+    border-color: #645966;
+    box-shadow: 0 2px 6px rgba(39, 174, 96, 0.3);
+    transform: translateY(-1px);
+}
+
+.circuit-action-btn:active {
+    transform: translateY(0);
+}
+
+.import-btn {
+    border-color: #645966;
+    color: #645966;
+}
+
+.import-btn:hover {
+    background: white;
+    border-color: #645966;
+    color: #645966;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(39, 174, 96, 0.3);
+}
+
+.save-button-group {
+    position: relative;
+    display: flex;
+}
+
+.save-btn {
+    border-color: #645966;
+    color: #645966;
+}
+
+.save-btn:hover {
+    background: white;
+    border-color: #645966;
+    color: #645966;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(39, 174, 96, 0.3);
+}
+
+.save-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 160px;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1000;
+}
+
+.save-dropdown.active {
+    display: flex;
+}
+
+.save-option {
+    padding: 10px 16px;
+    border: none;
+    background: white;
+    color: #333;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.15s ease;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: auto;
+    justify-content: flex-start;
+}
+
+.save-option:hover {
+    background: #f8f9fa;
+    transform: none;
+    box-shadow: none;
+}
+
+.save-option:not(:last-child) {
+    border-bottom: 1px solid #eee;
 }
 
 .error-btn.error-i {

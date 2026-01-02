@@ -1,0 +1,62 @@
+{
+  "num_qubits": 4,
+  "gates": [
+    {
+      "Single": {
+        "qubit": 0,
+        "gate": "H"
+      }
+    },
+    {
+      "Single": {
+        "qubit": 1,
+        "gate": "S"
+      }
+    },
+    {
+      "Single": {
+        "qubit": 2,
+        "gate": "Sdg"
+      }
+    },
+    {
+      "Single": {
+        "qubit": 3,
+        "gate": "X"
+      }
+    },
+    {
+      "Two": {
+        "CNOT": {
+          "control": 0,
+          "target": 1
+        }
+      }
+    },
+    {
+      "Two": {
+        "CNOT": {
+          "control": 2,
+          "target": 3
+        }
+      }
+    },
+    {
+      "Two": {
+        "CZ": {
+          "control": 1,
+          "target": 2
+        }
+      }
+    },
+    {
+      "Two": {
+        "SWAP": {
+          "qubit1": 0,
+          "qubit2": 3
+        }
+      }
+    }
+  ]
+}
+

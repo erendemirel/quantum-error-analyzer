@@ -9,6 +9,7 @@ import { setupCircuitConfig, changeQubitCount } from './ui/circuit-config.js';
 import { setupGatePalette } from './ui/gate-palette.js';
 import { setupErrorControls } from './ui/error-controls.js';
 import { setupSimulationControls } from './ui/simulation-controls.js';
+import { setupImportExport } from './ui/import-export.js';
 import { renderCircuit, updateTimeSeparators } from './rendering/circuit-renderer.js';
 import { getCircuitDepth } from './components/time-scheduler.js';
 import { recordErrorHistory } from './components/error-handler.js';
@@ -30,6 +31,7 @@ async function initApp() {
     setupGatePalette();
     setupErrorControls();
     setupSimulationControls();
+    setupImportExport();
     // Initialize currentTime to 0 (time slot 0)
     setCurrentTime(0);
     setPreviousCircuitDepth(0); // Initialize depth tracking for auto-scroll

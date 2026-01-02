@@ -3,6 +3,7 @@ use wasm_bindgen::prelude::*;
 use quantum_error_analyzer::physics::circuit::{Circuit, Gate, SingleGate, TwoGate};
 use quantum_error_analyzer::physics::pauli::{PauliString, SinglePauli, Phase};
 use quantum_error_analyzer::physics::simulator::Simulator;
+use quantum_error_analyzer::io;
 
 #[wasm_bindgen]
 #[derive(Clone)]
@@ -63,6 +64,41 @@ impl WasmCircuit {
     #[wasm_bindgen]
     pub fn get_gates(&self) -> JsValue {
         serde_wasm_bindgen::to_value(&self.circuit.gates).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn export_json(&self) -> Result<String, String> {
+        io::export_json(&self.circuit)
+    }
+
+    #[wasm_bindgen]
+    pub fn export_qasm(&self) -> String {
+        io::export_qasm(&self.circuit)
+    }
+
+    #[wasm_bindgen]
+    pub fn export_latex(&self) -> String {
+        io::export_latex(&self.circuit)
+    }
+
+    #[wasm_bindgen]
+    pub fn export_latex_simple(&self) -> String {
+        io::export_latex_simple(&self.circuit)
+    }
+}
+
+#[wasm_bindgen]
+impl WasmCircuit {
+    #[wasm_bindgen]
+    pub fn import_json(json_str: &str) -> Result<WasmCircuit, String> {
+        let circuit = io::import_json(json_str)?;
+        Ok(WasmCircuit { circuit })
+    }
+
+    #[wasm_bindgen]
+    pub fn import_qasm(qasm_str: &str) -> Result<WasmCircuit, String> {
+        let circuit = io::import_qasm(qasm_str)?;
+        Ok(WasmCircuit { circuit })
     }
 }
 

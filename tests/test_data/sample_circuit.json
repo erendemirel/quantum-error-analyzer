@@ -1,0 +1,42 @@
+{
+  "num_qubits": 3,
+  "gates": [
+    {
+      "Single": {
+        "qubit": 0,
+        "gate": "H"
+      }
+    },
+    {
+      "Single": {
+        "qubit": 1,
+        "gate": "S"
+      }
+    },
+    {
+      "Two": {
+        "CNOT": {
+          "control": 0,
+          "target": 2
+        }
+      }
+    },
+    {
+      "Two": {
+        "CZ": {
+          "control": 1,
+          "target": 2
+        }
+      }
+    },
+    {
+      "Two": {
+        "SWAP": {
+          "qubit1": 0,
+          "qubit2": 1
+        }
+      }
+    }
+  ]
+}
+
