@@ -107,10 +107,11 @@ pub fn apply_two_gate(pauli: &mut PauliString, gate: TwoGate) {
             let x_c = pauli.x_bits()[control];
             let z_t = pauli.z_bits()[target];
             
-            // X on control spreads to target, Z on target spreads to control
+            // X on control XORs with target, Z on target XORs with control
             if x_c {
                 let mut new_x = pauli.x_bits().clone();
-                new_x.set(target, true);
+                let current_value = new_x[target];
+                new_x.set(target, !current_value);
                 pauli.set_x_bits(new_x);
             }
             let mut new_z = pauli.z_bits().clone();
