@@ -165,3 +165,17 @@ fn test_cnot_xz_to_minus_yy_textbook() {
     assert_eq!(p.phase(), Phase::MinusOne, "CNOT · (X⊗Z) · CNOT' = -Y⊗Y (textbook rule)");
 }
 
+/// Verify CNOT with XX error: CNOT · (X ⊗ X) · CNOT' = X ⊗ I (textbook rule).
+#[test]
+fn test_cnot_xx_to_xi_textbook() {
+    // From quantum error correction literature: CNOT · (X ⊗ X) · CNOT' = X ⊗ I
+    // This is because X on control XORs with X on target, canceling it out
+    let mut p = PauliString::from_str("X X", 2).unwrap();
+    apply_two_gate(&mut p, TwoGate::CNOT { control: 0, target: 1 });
+    
+    // Textbook expectation: X⊗X → X⊗I
+    assert_eq!(p.get_pauli(0), SinglePauli::X, "X on control should stay X");
+    assert_eq!(p.get_pauli(1), SinglePauli::I, "X on target should cancel out (textbook rule)");
+    assert_eq!(p.phase(), Phase::PlusOne, "No phase change for X⊗X → X⊗I");
+}
+

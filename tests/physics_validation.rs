@@ -36,12 +36,11 @@ fn test_cnot_propagation_comprehensive() {
     assert_eq!(p.get_pauli(0), SinglePauli::Y);
     assert_eq!(p.get_pauli(1), SinglePauli::X);
 
-    // Test XX: X on control spreads to target, but X on target commutes with CNOT
-    // So XX should stay XX (not become XI)
+    // Test XX: X on control XORs with target X, so XX becomes XI
     let mut p = PauliString::from_str("X X", 2).unwrap();
     apply_two_gate(&mut p, TwoGate::CNOT { control: 0, target: 1 });
     assert_eq!(p.get_pauli(0), SinglePauli::X);
-    assert_eq!(p.get_pauli(1), SinglePauli::X);
+    assert_eq!(p.get_pauli(1), SinglePauli::I);
     assert_eq!(p.phase(), Phase::PlusOne);
 }
 
@@ -319,23 +318,12 @@ fn test_standard_quantum_identities() {
     // So the phase should be -i, not -1. Let's verify what we actually get.
     // Note: This is a complex identity, so we'll just verify the pattern matches expected behavior.
     
-    // Identity 3: CNOT is self-inverse (CNOT^2 = I)
-    // Note: CNOT XORs the target with the control, so CNOT^2 should return to original state
-    // However, our implementation tracks Pauli errors, and CNOT with X on control spreads X to target.
+    // Identity 3: CNOT is self inverse (CNOT^2 = I)
+    // CNOT XORs the target with the control for X errors.
     // When we apply CNOT twice with X on control:
-    //   First: X⊗I → X⊗X (X spreads to target)
-    //   Second: X⊗X → X⊗I (X on target commutes with CNOT, so it stays, but wait...)
-    // Actually, CNOT XORs: target_new = target XOR control
-    // So: X⊗I → X⊗X (target = I XOR X = X), then X⊗X → X⊗I (target = X XOR X = I)
-    // But our Pauli propagation tracks errors, not the actual quantum state.
-    // For Pauli errors: CNOT · (X⊗X) · CNOT' = X⊗X (X on target commutes)
-    // So the second CNOT should leave X⊗X as X⊗X, not X⊗I.
-    // This suggests our CNOT implementation might need to XOR rather than just set.
-    // However, for error propagation, the standard rule is: X on control spreads to target.
-    // When target already has X, the question is: does X spread again?
-    // In standard Pauli propagation: CNOT · (X⊗X) · CNOT' = X⊗X (commutes)
-    // So CNOT^2 with X on control should give X⊗X, not X⊗I.
-    // Let's test what actually happens and document it:
+    //   First: X⊗I → X⊗X (target = I XOR X = X)
+    //   Second: X⊗X → X⊗I (target = X XOR X = I)
+    // This demonstrates that CNOT^2 = I, as expected.
     let mut p = PauliString::from_str("X I", 2).unwrap();
     apply_two_gate(&mut p, TwoGate::CNOT { control: 0, target: 1 });
     // After first CNOT: X⊗I → X⊗X
@@ -343,10 +331,9 @@ fn test_standard_quantum_identities() {
     assert_eq!(p.get_pauli(1), SinglePauli::X);
     
     apply_two_gate(&mut p, TwoGate::CNOT { control: 0, target: 1 });
-    // After second CNOT: The standard Pauli propagation rule says X⊗X stays X⊗X
-    // because X on target commutes with CNOT. So this is actually correct behavior!
+    // After second CNOT: X⊗X → X⊗I (back to original)
     assert_eq!(p.get_pauli(0), SinglePauli::X);
-    assert_eq!(p.get_pauli(1), SinglePauli::X); // X stays, doesn't go back to I
+    assert_eq!(p.get_pauli(1), SinglePauli::I);
     assert_eq!(p.phase(), Phase::PlusOne);
     
     // Identity 4: CZ is self-inverse (CZ^2 = I)

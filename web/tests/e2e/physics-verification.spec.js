@@ -642,8 +642,8 @@ test.describe('Physics Verification - Comprehensive', () => {
     const errorPattern = await page.locator('.error-pattern').textContent();
     
     console.log('Captured console logs:', logs);
-    // Physics: CNOT with XX -> XX (X on control spreads to target, X on target commutes)
-    expect(errorPattern).toMatch(/^XX$/);
+    // Physics: CNOT with XX -> XI (X on control XORs with X on target, canceling it)
+    expect(errorPattern).toMatch(/^XI$/);
   });
 
   test('Multi-qubit error: XY propagates through H on Q0', async ({ page }) => {
